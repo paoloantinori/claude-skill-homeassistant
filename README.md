@@ -9,6 +9,24 @@
 ![Tablet Dashboard Example](dashboard.png)
 *Example tablet-optimized dashboard built using this skill - touch-friendly controls, color-coded status, and responsive grid layout*
 
+## 🎬 See It In Action
+
+### Quick Skill Check
+Verify Claude can see and use this skill:
+
+[![asciicast](https://asciinema.org/a/PlCyy6Gd7DspfcdZ3y8IHxV9u.svg)](https://asciinema.org/a/PlCyy6Gd7DspfcdZ3y8IHxV9u)
+
+*Click to watch: Shows Claude recognizing the skill and loading Home Assistant expertise*
+
+### Full Workflow Demo
+Watch the complete workflow in action - from automation creation to verification:
+
+[![asciicast](https://asciinema.org/a/wJQ9XLosbSzJtMAmItNw7jagH.svg)](https://asciinema.org/a/wJQ9XLosbSzJtMAmItNw7jagH)
+
+*Click to watch: Complete automation development cycle including deployment, testing, log analysis, and git workflow*
+
+> **💡 Tip:** Click the demos above to view them on asciinema.org with full playback controls (pause, seek, copy text from terminal)
+
 ## 🚀 What This Skill Does
 
 This Claude Code skill transforms Claude into a **Home Assistant expert** that helps you:
