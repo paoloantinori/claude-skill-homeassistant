@@ -22,7 +22,7 @@ Expert-level Home Assistant configuration management with efficient workflows, r
 ## Prerequisites
 
 Before starting, verify the environment has:
-1. SSH access to Home Assistant instance (`jflavigne@homeassistant.local`)
+1. SSH access to Home Assistant instance (`ssh ha`)
 2. `hass-cli` installed locally
 3. Environment variables loaded (HASS_SERVER, HASS_TOKEN) - via `source .env`
 4. Git repository connected to HA `/homeassistant` directory
@@ -37,10 +37,10 @@ Two methods available for deploying config changes from Claude Code:
 ### Method 1: SSH + tar (Direct, Always Works)
 ```bash
 # Deploy all config files
-tar czf - automations.yaml scripts.yaml templates/ | ssh jflavigne@homeassistant.local "cd /homeassistant && sudo tar xzf -"
+tar czf - automations.yaml scripts.yaml templates/ | ssh ha "cd /homeassistant && sudo tar xzf -"
 
 # Reload via hass-cli
-export HASS_SERVER=http://homeassistant.local:8123
+export HASS_SERVER=http://homeassistant.lan:8123
 export HASS_TOKEN=<token_from_.envrc>
 hass-cli service call automation.reload
 hass-cli service call script.reload
@@ -57,10 +57,10 @@ This pulls from GitHub and reloads all YAML automatically.
 ### Environment Setup
 Source credentials before using hass-cli:
 ```bash
-export HASS_SERVER=http://homeassistant.local:8123
+export HASS_SERVER=http://homeassistant.lan:8123
 export HASS_TOKEN=<from .envrc>
-export HASS_SSH_USER=jflavigne
-export HASS_SSH_HOST=homeassistant.local
+export HASS_SSH_USER=root
+export HASS_SSH_HOST=homeassistant.lan
 ```
 
 ## Remote Access Patterns
@@ -85,13 +85,13 @@ hass-cli service call automation.trigger --arguments entity_id=automation.name
 
 ```bash
 # Deploy files via SCP
-scp automations.yaml jflavigne@homeassistant.local:/homeassistant/
+scp automations.yaml ha:/homeassistant/
 
 # Pull latest from git
-ssh jflavigne@homeassistant.local "cd /homeassistant && git pull"
+ssh ha "cd /homeassistant && git pull"
 
 # Check git status on HA
-ssh jflavigne@homeassistant.local "cd /homeassistant && git status"
+ssh ha "cd /homeassistant && git status"
 ```
 
 **Note:** `ha core check/restart/logs` commands require Supervisor access (not available via SSH add-on). Use hass-cli instead:
@@ -112,7 +112,7 @@ Use for changes you want in version control:
 ```bash
 # 1. Make changes locally
 # 2. Check validity
-ssh jflavigne@homeassistant.local "ha core check"
+ssh ha "ha core check"
 
 # 3. Commit and push
 git add file.yaml
@@ -120,16 +120,16 @@ git commit -m "Description"
 git push
 
 # 4. CRITICAL: Pull to HA instance
-ssh jflavigne@homeassistant.local "cd /homeassistant && git pull"
+ssh ha "cd /homeassistant && git pull"
 
 # 5. Reload or restart
 hass-cli service call automation.reload  # if reload sufficient
 # OR
-ssh jflavigne@homeassistant.local "ha core restart"  # if restart needed
+ssh ha "ha core restart"  # if restart needed
 
 # 6. Verify
 hass-cli state get sensor.new_entity
-ssh jflavigne@homeassistant.local "ha core logs | grep -i error | tail -20"
+ssh ha "ha core logs | grep -i error | tail -20"
 ```
 
 ### Rapid Development Workflow (Testing/Iteration)
@@ -139,7 +139,7 @@ Use `scp` for quick testing before committing:
 ```bash
 # 1. Make changes locally
 # 2. Quick deploy
-scp automations.yaml jflavigne@homeassistant.local:/homeassistant/
+scp automations.yaml ha:/homeassistant/
 
 # 3. Reload/restart
 hass-cli service call automation.reload
@@ -189,12 +189,12 @@ git push
 ### Step 1: Deploy
 ```bash
 git add automations.yaml && git commit -m "..." && git push
-ssh jflavigne@homeassistant.local "cd /homeassistant && git pull"
+ssh ha "cd /homeassistant && git pull"
 ```
 
 ### Step 2: Check Configuration
 ```bash
-ssh jflavigne@homeassistant.local "ha core check"
+ssh ha "ha core check"
 ```
 
 ### Step 3: Reload
@@ -215,7 +215,7 @@ hass-cli service call automation.trigger --arguments entity_id=automation.name
 ### Step 5: Check Logs
 ```bash
 sleep 3
-ssh jflavigne@homeassistant.local "ha core logs | grep -i 'automation_name' | tail -20"
+ssh ha "ha core logs | grep -i 'automation_name' | tail -20"
 ```
 
 **Success indicators:**
@@ -276,7 +276,7 @@ If errors found:
 vim .storage/lovelace.control_center
 
 # 2. Deploy immediately (no git commit yet)
-scp .storage/lovelace.control_center jflavigne@homeassistant.local:/homeassistant/.storage/
+scp .storage/lovelace.control_center ha:/homeassistant/.storage/
 
 # 3. Refresh browser (Ctrl+F5 or Cmd+Shift+R)
 # No HA restart needed!
@@ -287,7 +287,7 @@ scp .storage/lovelace.control_center jflavigne@homeassistant.local:/homeassistan
 git add .storage/lovelace.control_center
 git commit -m "Update dashboard layout"
 git push
-ssh jflavigne@homeassistant.local "cd /homeassistant && git pull"
+ssh ha "cd /homeassistant && git pull"
 ```
 
 **Why scp for dashboards:**
@@ -316,11 +316,11 @@ cp .storage/lovelace.my_home .storage/lovelace.new_dashboard
 }
 
 # Step 3: Deploy both files
-scp .storage/lovelace.new_dashboard jflavigne@homeassistant.local:/homeassistant/.storage/
-scp .storage/lovelace_dashboards jflavigne@homeassistant.local:/homeassistant/.storage/
+scp .storage/lovelace.new_dashboard ha:/homeassistant/.storage/
+scp .storage/lovelace_dashboards ha:/homeassistant/.storage/
 
 # Step 4: Restart HA (required for registry changes)
-ssh jflavigne@homeassistant.local "ha core restart"
+ssh ha "ha core restart"
 sleep 30
 
 # Step 5: Verify appears in sidebar
@@ -595,12 +595,12 @@ hass-cli state get binary_sensor.front_door
 
 ```bash
 # Configuration
-ssh jflavigne@homeassistant.local "ha core check"
-ssh jflavigne@homeassistant.local "ha core restart"
+ssh ha "ha core check"
+ssh ha "ha core restart"
 
 # Logs
-ssh jflavigne@homeassistant.local "ha core logs | tail -50"
-ssh jflavigne@homeassistant.local "ha core logs | grep -i error | tail -20"
+ssh ha "ha core logs | tail -50"
+ssh ha "ha core logs | grep -i error | tail -20"
 
 # State/Services
 hass-cli state list
@@ -610,18 +610,18 @@ hass-cli service call automation.trigger --arguments entity_id=automation.name
 
 # Deployment
 git add . && git commit -m "..." && git push
-ssh jflavigne@homeassistant.local "cd /homeassistant && git pull"
-scp file.yaml jflavigne@homeassistant.local:/homeassistant/
+ssh ha "cd /homeassistant && git pull"
+scp file.yaml ha:/homeassistant/
 
 # Dashboard deployment
-scp .storage/lovelace.my_dashboard jflavigne@homeassistant.local:/homeassistant/.storage/
+scp .storage/lovelace.my_dashboard ha:/homeassistant/.storage/
 python3 -m json.tool .storage/lovelace.my_dashboard > /dev/null  # Validate JSON
 
 # Quick test cycle
-scp automations.yaml jflavigne@homeassistant.local:/homeassistant/
+scp automations.yaml ha:/homeassistant/
 hass-cli service call automation.reload
 hass-cli service call automation.trigger --arguments entity_id=automation.name
-ssh jflavigne@homeassistant.local "ha core logs | grep -i 'automation' | tail -10"
+ssh ha "ha core logs | grep -i 'automation' | tail -10"
 ```
 
 ## Best Practices Summary
@@ -710,7 +710,7 @@ sleep 15
 # See /tmp/ha_fix_registry_final.py or create similar
 
 # 4. Reboot system (since we can't start HA via SSH add-on)
-ssh jflavigne@homeassistant.local "sudo reboot"
+ssh ha "sudo reboot"
 ```
 
 **Fix Script Logic:**
