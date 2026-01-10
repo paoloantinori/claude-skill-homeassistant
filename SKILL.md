@@ -843,6 +843,29 @@ python3 scripts/ha_migrate_automation_ids.py fix-registry
 2. Generate or edit migration.yaml
 3. Run `execute` - tool handles stop/migrate/reboot
 
+### Tool 4: Entity Exposure (`ha_expose_entities.py`)
+
+Manage which entities are exposed to the conversation agent (AI assistant).
+
+```bash
+# Expose entities to conversation agent
+python3 scripts/ha_expose_entities.py expose sensor.flex_d_status sensor.nas_status
+
+# Unexpose entities
+python3 scripts/ha_expose_entities.py unexpose sensor.old_sensor
+
+# List all currently exposed entities
+python3 scripts/ha_expose_entities.py list
+
+# Check if specific entities are exposed
+python3 scripts/ha_expose_entities.py check sensor.flex_d_status
+```
+
+**Use cases:**
+- Expose new summary sensors to AI assistant
+- Bulk expose/unexpose entities
+- Audit what the AI can see
+
 ### Label Management Workflow (Claude-Assisted)
 
 Labels require thoughtful planning. Use this workflow:
