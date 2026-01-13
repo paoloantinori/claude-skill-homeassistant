@@ -94,6 +94,16 @@ ssh ha "cd /homeassistant && git pull"
 ssh ha "cd /homeassistant && git status"
 ```
 
+**SSH Fingerprint Display:** When connecting via SSH, you may see a host key fingerprint displayed as ASCII art:
+```
++--[ED25519 256]--+
+|        .o..    |
+|       .  o     |
+...
++----[SHA256]-----+
+```
+This is **normal visual confirmation**, NOT a prompt to accept an unknown host. The connection proceeds automatically - no action required. This appears because `VisualHostKey yes` is enabled in the SSH config.
+
 **Note:** `ha core check/restart/logs` commands require Supervisor access (not available via SSH add-on). Use hass-cli instead:
 ```bash
 # Reload automations (instead of restart)
