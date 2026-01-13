@@ -156,10 +156,50 @@ hass-cli service call automation.reload
 
 # 4. Test and iterate (repeat 1-3 as needed)
 
-# 5. Once finalized, commit to git
+# 5. Once finalized, commit and push to git
 git add automations.yaml
 git commit -m "Final tested changes"
 git push
+
+# 6. CRITICAL: Sync HA git state (reset scp'd files, then pull)
+# First, discard local changes for the specific files we scp'd
+ssh ha "cd /homeassistant && git checkout -- automations.yaml"
+# Then pull (now clean, will succeed)
+ssh ha "cd /homeassistant && git pull"
+```
+
+**Why `git checkout -- <files>` before `git pull`:**
+After testing with `scp`, the HA instance has modified files. A regular `git pull` would fail with "uncommitted local changes" error. The safe approach:
+1. `git checkout -- <files>` - reverts ONLY the specific files we scp'd to their last committed state
+2. `git pull` - now succeeds since there are no conflicts
+
+**Important:** Only checkout the files you explicitly scp'd. Do NOT use `git reset --hard` as it would discard ALL local modifications, including any unrelated changes on the server.
+
+### CRITICAL: Never Use `git reset --hard` on HA Server
+
+**FORBIDDEN command:**
+```bash
+# NEVER DO THIS - can lose uncommitted work on the server
+ssh ha "cd /homeassistant && git reset --hard origin/master"
+```
+
+**Why this is dangerous:**
+- The HA server may have uncommitted changes (manual edits, UI changes, other tools)
+- `git reset --hard` discards ALL local modifications without warning
+- There is no recovery from this operation
+
+**Even after force-push, use this safe pattern instead:**
+```bash
+# 1. ALWAYS check for uncommitted changes first
+ssh ha "cd /homeassistant && git status"
+
+# 2. If only expected files are modified, checkout those specific files
+ssh ha "cd /homeassistant && git checkout -- file1.yaml file2.yaml"
+
+# 3. Then pull (or fetch + rebase for force-push scenarios)
+ssh ha "cd /homeassistant && git fetch origin && git rebase origin/master"
+
+# 4. If unexpected changes exist, ASK THE USER before proceeding
 ```
 
 **When to use scp:**
