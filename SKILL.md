@@ -41,7 +41,7 @@ tar czf - automations.yaml scripts.yaml templates/ | ssh ha "cd /homeassistant &
 
 # Reload via hass-cli
 export HASS_SERVER=http://homeassistant.lan:8123
-export HASS_TOKEN=<token_from_.envrc>
+export HASS_TOKEN=<token_from_.env>
 hass-cli service call automation.reload
 hass-cli service call script.reload
 hass-cli service call template.reload
@@ -58,7 +58,7 @@ This pulls from GitHub and reloads all YAML automatically.
 Source credentials before using hass-cli:
 ```bash
 export HASS_SERVER=http://homeassistant.lan:8123
-export HASS_TOKEN=<from .envrc>
+export HASS_TOKEN=<from .env>
 export HASS_SSH_USER=root
 export HASS_SSH_HOST=homeassistant.lan
 ```
