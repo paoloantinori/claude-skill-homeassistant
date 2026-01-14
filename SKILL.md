@@ -1150,6 +1150,46 @@ When creating sensors for Synology NAS, handle all possible states:
 - `off` = Security OK
 - `on` = Security Alert
 
+## Android TTS Notifications
+
+### Correct Service Call Format
+
+When sending TTS notifications to Android phones via the Companion App, **all these fields are required**:
+
+```yaml
+action: notify.mobile_app_telefono_paolo
+data:
+  message: TTS
+  data:
+    ttl: 0
+    priority: high
+    media_stream: alarm_stream_max
+    tts_text: "Your message here"
+```
+
+**Critical fields:**
+- `ttl: 0` - Prevents notification delay/suppression in doze mode
+- `priority: high` - Ensures immediate delivery
+- `media_stream: alarm_stream_max` - Plays at maximum volume on alarm stream
+- `tts_text` - The actual text to speak (NOT `message` or `title`)
+
+**Common mistakes:**
+- ❌ Missing `ttl: 0` and `priority: high` → notification may be delayed or silent
+- ❌ Using `message:` for the spoken text → must use `tts_text:` inside nested `data:`
+- ❌ Wrong indentation → YAML parsing errors
+
+### Pronunciation Workarounds
+
+Android TTS does **NOT** support SSML tags. For proper name pronunciation issues:
+
+| Problem | Solution | Example |
+|---------|----------|---------|
+| Name spelled letter-by-letter | Add/double vowels | "Ada" → "Aada" |
+| Acronym-like words | Use lowercase or accents | "ADA" → "Àda" |
+| Foreign words mispronounced | Phonetic spelling | Use intuitive spellings |
+
+**Note:** The TTS engine is controlled by Android device settings (Settings → Accessibility → Text-to-speech), not by Home Assistant.
+
 ---
 
 This skill encapsulates efficient Home Assistant management workflows developed through iterative optimization and real-world dashboard development. Apply these patterns to any Home Assistant instance for reliable, fast, and safe configuration management.
