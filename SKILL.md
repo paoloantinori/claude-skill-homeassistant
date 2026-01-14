@@ -247,6 +247,36 @@ ssh ha "cd /homeassistant && git fetch origin && git rebase origin/master"
 # 4. If unexpected changes exist, ASK THE USER before proceeding
 ```
 
+### 🚨 CRITICAL: INSPECT Before Discarding HA Server Changes
+
+**NEVER run `git checkout --` on the HA server without FIRST inspecting the differences.**
+
+When `git pull` fails with "uncommitted local changes":
+
+```bash
+# ✅ CORRECT WORKFLOW:
+# Step 1: INSPECT what changed and WHY
+ssh ha "cd /homeassistant && git diff automations.yaml"
+
+# Step 2: ANALYZE the output
+# - Are these MY scp-deployed changes from this session? → Safe to discard
+# - Are these UNKNOWN changes from outside this session? → STOP, investigate
+
+# Step 3: ONLY THEN decide
+# If your own changes: git checkout -- file.yaml
+# If unknown changes: Ask user, do NOT discard blindly
+
+# ❌ FORBIDDEN: Blind discard without inspection
+ssh ha "cd /homeassistant && git checkout -- file.yaml"  # NEVER without diff first!
+```
+
+**Why this matters:**
+- The HA server may have legitimate changes from: UI edits, other tools, manual SSH sessions, or another developer
+- Blindly discarding loses those changes with NO recovery
+- This violates the "Evidence > assumptions" principle
+
+**Evidence > Assumptions**: Always verify the nature of conflicts before discarding.
+
 **When to use scp:**
 - 🚀 Rapid iteration and testing
 - 🔄 Frequent small adjustments
