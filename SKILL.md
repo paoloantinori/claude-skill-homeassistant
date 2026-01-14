@@ -30,6 +30,51 @@ Before starting, verify the environment has:
 
 **Note:** The `ha core` CLI commands are not available via the SSH add-on. Use `hass-cli` for service calls and API access instead.
 
+## 🚨 CRITICAL GUARDRAILS - Reload vs Restart
+
+**NEVER use `ha core restart` unless EXPLICITLY required by the change type.**
+
+### When to RELOAD (fast, non-disruptive):
+
+**⚠️ ALWAYS source .env first:** `source /home/pantinor/data/repo/personal/hassio/.env`
+
+| Change Type | Reload Command |
+|-------------|----------------|
+| Automations | `source .env && hass-cli service call automation.reload` |
+| Scripts | `source .env && hass-cli service call script.reload` |
+| Templates | `source .env && hass-cli service call template.reload` |
+| Scenes | `source .env && hass-cli service call scene.reload` |
+| Groups | `source .env && hass-cli service call group.reload` |
+| Themes | `source .env && hass-cli service call frontend.reload_themes` |
+
+**Note:** Without sourcing `.env`, hass-cli will fail with 401 Unauthorized.
+
+### When RESTART is actually required:
+- New integrations in `configuration.yaml`
+- Min/Max sensors and platform-based sensors
+- Core configuration changes
+- New packages added
+
+### If hass-cli fails (401/connection error) - Use REST API fallback:
+```bash
+# ✅ CORRECT: Use REST API for reload (non-disruptive)
+source /home/pantinor/data/repo/personal/hassio/.env && \
+curl -s -X POST \
+  -H "Authorization: Bearer ${HASS_TOKEN}" \
+  -H "Content-Type: application/json" \
+  "${HASS_SERVER}/api/services/automation/reload"
+
+# ❌ WRONG: Do NOT fall back to ha core restart for simple reloads!
+# ssh ha "ha core restart"  # NEVER do this for automations/scripts/templates
+```
+
+### Guardrail Checklist:
+0. ✅ **Source .env first:** `source /home/pantinor/data/repo/personal/hassio/.env`
+1. ✅ Identify what changed (automations? scripts? templates?)
+2. ✅ Use the appropriate reload service call
+3. ✅ If hass-cli fails → Check if .env was sourced, then use REST API
+4. ❌ NEVER use `ha core restart` as a lazy fallback
+
 ## Quick Deployment (Claude Code)
 
 Two methods available for deploying config changes from Claude Code:
