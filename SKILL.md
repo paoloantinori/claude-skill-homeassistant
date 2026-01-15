@@ -307,6 +307,23 @@ ssh ha "cd /homeassistant && git checkout -- file.yaml"  # NEVER without diff fi
 - ❌ Core configuration changes
 - ❌ MQTT sensor/binary_sensor platforms
 
+## Automation Locations
+
+**Automations can exist in multiple locations:**
+
+| Location | Description |
+|----------|-------------|
+| `automations.yaml` | Main automation file (HA default) |
+| `automations/*/` | Split automations by category |
+| `packages/*/` | HA packages bundling automations with related entities |
+
+**Important:** When searching for or analyzing automations, always check ALL three locations. Packages can contain automations alongside input_booleans, sensors, scripts, and other related entities.
+
+**Entity Registry:** The unique_id in the entity registry corresponds to the `id:` field in the automation YAML. If automations appear duplicated in the UI, check for:
+- Mismatched `id:` vs `alias:` (ID should match the purpose)
+- Orphaned registry entries from deleted automations
+- Old numeric IDs that were migrated to descriptive IDs
+
 ## Automation Verification Workflow
 
 **ALWAYS verify automations after deployment:**
