@@ -324,6 +324,41 @@ ssh ha "cd /homeassistant && git checkout -- file.yaml"  # NEVER without diff fi
 - Orphaned registry entries from deleted automations
 - Old numeric IDs that were migrated to descriptive IDs
 
+### Modifying the Entity Registry
+
+**CRITICAL:** The entity registry is cached in memory. Edits while HA is running will be overwritten on shutdown.
+
+**Correct procedure:**
+```bash
+# 1. STOP HA first
+ssh ha "ha core stop"
+sleep 10
+
+# 2. Edit the registry (example: remove orphaned entries)
+ssh ha "python3 << 'EOF'
+import json
+with open('/homeassistant/.storage/core.entity_registry', 'r') as f:
+    data = json.load(f)
+
+# Remove specific entries
+data['data']['entities'] = [
+    e for e in data['data']['entities']
+    if e.get('unique_id') not in ['id_to_remove']
+]
+
+with open('/homeassistant/.storage/core.entity_registry', 'w') as f:
+    json.dump(data, f, indent=2)
+EOF"
+
+# 3. START HA - new entries will be created from YAML
+ssh ha "ha core start"
+```
+
+**Common registry operations:**
+- Remove orphaned entries (unique_id no longer in YAML)
+- Fix entity_id mismatches (rename entity_id field)
+- Clean up duplicate entries with `_2`, `_3` suffixes
+
 ## Automation Verification Workflow
 
 **ALWAYS verify automations after deployment:**
