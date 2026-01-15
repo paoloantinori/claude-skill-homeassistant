@@ -1,6 +1,42 @@
 ---
 name: home-assistant-manager
 description: Expert-level Home Assistant configuration management with efficient deployment workflows (git and rapid scp iteration), remote CLI access via SSH and hass-cli, automation verification protocols, log analysis, reload vs restart optimization, and comprehensive Lovelace dashboard management for tablet-optimized UIs. Includes template patterns, card types, debugging strategies, and real-world examples.
+triggers:
+  files:
+    - "automations/**/*.yaml"
+    - "automations/**/*.yml"
+    - "scripts/**/*.yaml"
+    - "scripts/**/*.yml"
+    - "templates/**/*.yaml"
+    - "templates/**/*.yml"
+    - "pyscript/**/*.py"
+    - "packages/**/*.yaml"
+    - "packages/**/*.yml"
+    - "configuration.yaml"
+    - "**/lovelace/**/*.yaml"
+    - "**/lovelace/**/*.yml"
+    - "ui-lovelace.yaml"
+  commands:
+    - "scp *ha:/homeassistant/*"
+    - "scp * ha:/homeassistant/*"
+    - "ssh ha*"
+    - "hass-cli*"
+    - "curl *homeassistant*"
+    - "curl *HASS_SERVER*"
+    - "git pull*"
+    - "git push*"
+  keywords:
+    - "home assistant"
+    - "homeassistant"
+    - "automation"
+    - "lovelace"
+    - "dashboard"
+    - "deploy to ha"
+    - "reload automation"
+    - "reload script"
+    - "reload template"
+    - "pyscript"
+    - "hass-cli"
 ---
 
 # Home Assistant Manager
