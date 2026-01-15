@@ -158,6 +158,76 @@ hass-cli service call automation.reload
 hass-cli raw get /api/error/all
 ```
 
+## Template Evaluation via REST API
+
+Evaluate Jinja2 templates remotely using the `/api/template` endpoint. **Critical escaping rules apply.**
+
+### Basic Template Evaluation
+```bash
+source .env && curl -s -X POST \
+  -H "Authorization: Bearer $HASS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"template": "{{ states(\"sensor.temperature\") }}"}' \
+  "$HASS_SERVER/api/template"
+```
+
+### ⚠️ JSON Escaping Rules (CRITICAL)
+
+When embedding Jinja2 in JSON within bash:
+
+| Character | Escape Method | Example |
+|-----------|---------------|---------|
+| Inner `"` | Use `\"` | `states(\"sensor.foo\")` |
+| `$` in bash | Use single quotes for outer shell | `'{"template": "..."}'` |
+| Emojis | **AVOID** - causes invalid JSON | Use text descriptions instead |
+| Newlines | Use `\\n` or avoid | Single-line templates preferred |
+
+### ✅ Correct Examples
+```bash
+# Simple state check
+source .env && curl -s -X POST \
+  -H "Authorization: Bearer $HASS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"template": "{{ states(\"cover.tapparella_nora\") }}"}' \
+  "$HASS_SERVER/api/template"
+
+# Multiple states with string concatenation
+source .env && curl -s -X POST \
+  -H "Authorization: Bearer $HASS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"template": "State: {{ states(\"sensor.a\") }}, Attr: {{ state_attr(\"sensor.a\", \"unit\") }}"}' \
+  "$HASS_SERVER/api/template"
+
+# Boolean logic
+source .env && curl -s -X POST \
+  -H "Authorization: Bearer $HASS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"template": "{{ is_state(\"binary_sensor.foo\", \"on\") and is_state(\"binary_sensor.bar\", \"off\") }}"}' \
+  "$HASS_SERVER/api/template"
+```
+
+### ❌ Common Mistakes
+```bash
+# WRONG: Emojis in template (invalid UTF-8/JSON)
+-d '{"template": "Status: ✅ {{ states(\"sensor.foo\") }}"}'
+
+# WRONG: Unescaped inner quotes
+-d '{"template": "{{ states("sensor.foo") }}"}'
+
+# WRONG: Double quotes for outer shell ($ expansion issues)
+-d "{"template": "{{ states(\"sensor.foo\") }}"}"
+```
+
+### Alternative: Use hass-cli raw
+For complex templates, use `hass-cli raw` with a JSON file:
+```bash
+# Create template file
+echo '{"template": "{{ now() }}"}' > /tmp/tpl.json
+
+# Execute
+source .env && hass-cli raw post /api/template < /tmp/tpl.json
+```
+
 ## Deployment Workflows
 
 ### Standard Git Workflow (Final Changes)
