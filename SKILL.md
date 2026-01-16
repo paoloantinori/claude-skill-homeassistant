@@ -1587,6 +1587,191 @@ Android TTS does **NOT** support SSML tags. For proper name pronunciation issues
 
 **Note:** The TTS engine is controlled by Android device settings (Settings → Accessibility → Text-to-speech), not by Home Assistant.
 
+## 🔍 Troubleshooting Integration Errors
+
+### 🚨 CRITICAL RULE: Documentation First, Assumptions Never
+
+**Before making ANY suggestions about Home Assistant integrations or services, you MUST:**
+
+1. **Check official documentation** via WebFetch: `https://www.home-assistant.io/integrations/[integration_name]/`
+2. **Search for recent changes** via Tavily: "Home Assistant [integration] 2025 2026 changes breaking"
+3. **Verify service parameters** against current API documentation
+4. **Check GitHub issues** for known limitations and ongoing work
+
+**NEVER:**
+- Suggest solutions based on assumptions or outdated knowledge
+- Propose service calls without verifying parameter schemas
+- Ignore that integrations configured via UI may have different behavior than YAML
+- Assume chat IDs, entity names, or service formats are correct without verification
+
+### Telegram Integration (2025.11+ Breaking Changes)
+
+**Critical Changes in Home Assistant 2025.11:**
+
+1. **Configuration Moved to UI**
+   - `telegram_bot:` YAML config is deprecated and ignored
+   - All configuration now via: Settings → Devices & Services → Telegram
+   - Chat IDs must be added through UI integration config
+
+2. **Two Coexisting Approaches**
+
+   **✅ telegram_bot.send_message (RECOMMENDED for advanced features)**
+   ```yaml
+   action: telegram_bot.send_message
+   data:
+     message: "Your message"
+     target: [123456789]  # or [-4996384291] for groups
+     parse_mode: html  # or markdown, markdownv2
+     disable_notification: false
+     inline_keyboard:  # Advanced feature
+       - "Button:/command"
+   ```
+
+   **Features:**
+   - ✅ Inline keyboards and buttons
+   - ✅ Photos, videos, documents (`telegram_bot.send_photo`, etc.)
+   - ✅ Full formatting (HTML, Markdown)
+   - ✅ Group chat support
+   - ✅ All Telegram Bot API features
+
+   **❌ notify.send_message (LIMITED, still evolving)**
+   ```yaml
+   action: notify.send_message
+   target:
+     entity_id: notify.telegram_bot_123456789_987654321
+   data:
+     message: "Your message"
+   ```
+
+   **Current Limitations (as of 2025.11-2026.01):**
+   - ❌ No photos/videos (in development, expected Jan 2026)
+   - ❌ No inline keyboards
+   - ❌ Limited group support (in development)
+   - ❌ No advanced formatting options
+
+3. **Common Chat ID Issues**
+
+   **Valid Chat ID Format:**
+   - Individual users: Positive numbers (e.g., `363645715`)
+   - Groups/channels: Negative numbers (e.g., `-4996384291`)
+   - Must be allowlisted in integration configuration
+
+   **Symptoms of Wrong Chat ID:**
+   ```
+   ERROR: Invalid chat IDs
+   ERROR: Unauthorized
+   ERROR: Chat not found
+   ```
+
+   **How to Get Correct Chat IDs:**
+   ```
+   1. Use @getmyid_bot in Telegram
+   2. For users: Start bot, get your ID
+   3. For groups: Forward any group message to bot
+   4. For channels: Forward any channel message to bot
+   5. Verify in HA: Settings → Devices & Services → Telegram → Configure
+   ```
+
+   **⚠️ Chat IDs Can Change:**
+   - Groups recreated → new ID
+   - Channel settings changed → new ID
+   - **Always verify** chat IDs in integration config match what's used in automations
+
+4. **Debugging Telegram Errors**
+
+   **Error: "Invalid chat IDs"**
+   ```bash
+   # 1. Check integration configuration
+   # Settings → Devices & Services → Telegram → Configure → Allowed chat IDs
+
+   # 2. Find chat IDs used in automations
+   grep -r "telegram_bot.send_message" automations/ -A5 | grep "target:"
+
+   # 3. Verify they match configuration
+   # If mismatch, update automations with correct IDs
+   ```
+
+   **Error: "Extra keys not allowed @ data['X']"**
+   - Service parameter schema changed
+   - Check current documentation: https://www.home-assistant.io/integrations/telegram_bot/
+   - Use WebFetch to get latest parameter list
+
+### General Integration Troubleshooting Workflow
+
+```
+Integration Error Occurs
+├─ 1. DON'T assume - Research first
+│  ├─ WebFetch: https://www.home-assistant.io/integrations/[name]/
+│  ├─ Tavily: "Home Assistant [name] 2025 2026"
+│  └─ Check GitHub: Known issues and PRs
+│
+├─ 2. Identify Configuration Method
+│  ├─ UI-configured? → Settings → Devices & Services
+│  ├─ YAML-configured? → Check configuration.yaml
+│  └─ Mixed? → UI config takes precedence
+│
+├─ 3. Verify Service Parameters
+│  ├─ Check official docs for current schema
+│  ├─ Test in Developer Tools → Actions
+│  └─ Check logs for specific parameter errors
+│
+├─ 4. Check for Breaking Changes
+│  ├─ Release notes for HA version
+│  ├─ Integration-specific migration guides
+│  └─ Community forums for migration patterns
+│
+└─ 5. Validate Fix Before Applying
+   ├─ Test in Developer Tools first
+   ├─ Check logs after test
+   └─ Only then update automations
+```
+
+### Service Parameter Verification
+
+**Before suggesting ANY service call, verify parameters:**
+
+```bash
+# Option 1: Developer Tools → Actions (UI)
+# - Select service
+# - UI shows available parameters with descriptions
+# - Test before coding
+
+# Option 2: WebFetch official documentation
+# https://www.home-assistant.io/integrations/[integration]/#services
+```
+
+**Common Parameter Errors:**
+
+| Error Message | Cause | Solution |
+|---------------|-------|----------|
+| "extra keys not allowed @ data['X']" | Parameter no longer exists | Remove parameter, check docs |
+| "required key not provided @ data['X']" | Missing required parameter | Add parameter from docs |
+| "invalid data for call_service" | Wrong parameter type | Check type (string/int/list) |
+| "Entity not found" | Entity ID changed or disabled | Verify in States list |
+
+### UI-Configured Integration Gotchas
+
+**Telegram, Alexa, Google, Notify integrations:**
+1. Configuration in UI, not YAML
+2. Entity IDs auto-generated from config
+3. Service schemas may differ from YAML era
+4. Check integration page in UI for current entities
+
+**Migration Pattern (2024-2025):**
+```
+Old (YAML):
+notify:
+  - platform: telegram
+    chat_id: 123456789
+
+New (UI + automation):
+# 1. Add via UI: Settings → Add Integration → Telegram
+# 2. Use in automations:
+action: telegram_bot.send_message
+data:
+  target: [123456789]
+```
+
 ---
 
 This skill encapsulates efficient Home Assistant management workflows developed through iterative optimization and real-world dashboard development. Apply these patterns to any Home Assistant instance for reliable, fast, and safe configuration management.
