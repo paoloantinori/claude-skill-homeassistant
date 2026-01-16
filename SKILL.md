@@ -988,6 +988,175 @@ ssh ha "cp /config/.storage/core.entity_registry.backup_YYYYMMDD_HHMMSS /config/
 
 ---
 
+### Enabling/Disabling Entities Safely
+
+**🚨 CRITICAL: The ONLY safe method to enable/disable entities is via the Web UI while HA is running.**
+
+#### ✅ CORRECT Method: Web UI (Recommended)
+
+```
+1. Open: http://homeassistant.local:8123
+2. Navigate: Settings → Devices & Services → Entities
+3. Search for the entity (e.g., "telefono_chiara_is_charging")
+4. Click on the disabled/enabled entity
+5. Click "Enable" or "Disable" button
+6. Wait a few seconds - no restart needed
+```
+
+**Why this is safe:**
+- HA handles all registry updates in-memory
+- No file corruption risk
+- Changes take effect immediately
+- No restart required
+- HA validates the operation
+
+#### ❌ DANGEROUS Methods That WILL Fail or Corrupt
+
+**1. REST API Entity Registry Endpoints (DO NOT USE)**
+
+These endpoints **DO NOT EXIST** or **DO NOT WORK** as expected:
+```bash
+# ❌ WRONG - These will return 404 or fail
+curl -X POST "http://homeassistant.local:8123/api/config/entity_registry/ENTITY_ID"
+curl -X POST "http://homeassistant.local:8123/api/config/entity_registry/update/ENTITY_ID"
+```
+
+**Reality:** Home Assistant's REST API does NOT support direct entity enable/disable operations. The entity registry is managed through WebSocket API (undocumented) or the UI only.
+
+**2. Direct File Editing While HA is Running (EXTREMELY DANGEROUS)**
+
+```bash
+# ❌ WRONG - This WILL corrupt the registry
+ssh ha "cat /config/.storage/core.entity_registry | jq '...' > /tmp/new.json"
+scp /tmp/new.json ha:/config/.storage/core.entity_registry
+
+# ❌ WRONG - SCP can create 0-byte files
+scp local_registry.json ha:/config/.storage/core.entity_registry
+```
+
+**Why this fails:**
+- HA keeps the registry **in memory** while running
+- Any file changes are **overwritten on HA shutdown**
+- SCP errors or pipe failures create **0-byte files** → complete corruption
+- jq piping can fail silently and output nothing
+- No atomic write protection
+
+**3. Python Scripts on Running HA (WILL FAIL)**
+
+```bash
+# ❌ WRONG - Changes lost when HA shuts down
+ssh ha "python3 /tmp/enable_entity.py"
+```
+
+**Why this fails:**
+- HA loads registry into memory at startup
+- File modifications don't affect running HA
+- HA overwrites file from memory on shutdown
+- Your changes are silently lost
+
+#### ⚠️ Advanced Method: Registry Editing (ONLY When HA is Stopped)
+
+**Use ONLY for:**
+- Fixing corrupt registries
+- Bulk operations on stopped systems
+- Recovery scenarios
+
+**Requirements:**
+1. HA **MUST be completely stopped** (not just restarting)
+2. Backup MUST be verified before editing
+3. Use proper Python JSON handling (NOT jq/sed)
+4. Verify file size after writing
+5. Reboot to restart HA
+
+**Correct procedure:**
+```bash
+# 1. BACKUP FIRST (verify size)
+ssh ha "cp /config/.storage/core.entity_registry /config/.storage/core.entity_registry.backup_$(date +%Y%m%d_%H%M%S)"
+ssh ha "ls -lh /config/.storage/core.entity_registry.backup*" | tail -1
+# VERIFY: File size should be ~4MB, NOT 0 bytes
+
+# 2. STOP HA COMPLETELY
+source .env && hass-cli service call homeassistant.stop
+sleep 30
+
+# 3. Verify HA is stopped
+# Check that API is unreachable or use system check
+
+# 4. Download registry to local machine
+scp ha:/config/.storage/core.entity_registry /tmp/registry_local.json
+
+# VERIFY: Check file size locally
+ls -lh /tmp/registry_local.json
+# MUST be ~4MB, NOT 0 bytes - if 0, SCP failed, restore backup immediately
+
+# 5. Edit locally with Python (NEVER jq/sed)
+python3 /tmp/edit_registry.py  # Proper JSON handling
+
+# 6. VERIFY edited file before uploading
+ls -lh /tmp/registry_edited.json
+# MUST be reasonable size, NOT 0 bytes
+
+# 7. Upload edited file
+scp /tmp/registry_edited.json ha:/config/.storage/core.entity_registry
+
+# 8. VERIFY uploaded file
+ssh ha "ls -lh /config/.storage/core.entity_registry"
+# If 0 bytes: RESTORE BACKUP IMMEDIATELY
+# ssh ha "cp /config/.storage/core.entity_registry.backup_YYYYMMDD_HHMMSS /config/.storage/core.entity_registry"
+
+# 9. Reboot system (can't start HA via SSH add-on)
+ssh ha "sudo reboot"
+```
+
+#### Common Mistakes and Their Consequences
+
+| Mistake | Consequence | Recovery |
+|---------|-------------|----------|
+| Edit registry while HA running | Changes silently lost on shutdown | Re-edit with HA stopped |
+| SCP without size verification | 0-byte file = total corruption | Restore from backup immediately |
+| Use jq/sed piping | Empty output = total corruption | Restore from backup immediately |
+| No backup before editing | Unrecoverable data loss | None - all metadata lost |
+| REST API enable/disable | 404 error or no effect | Use Web UI instead |
+| Restart instead of stop | Registry rewritten from memory | Changes lost, must stop HA |
+
+#### Verification Checklist
+
+Before proceeding with ANY registry operation:
+
+```bash
+# ✅ 1. Backup exists and is valid
+ssh ha "ls -lh /config/.storage/core.entity_registry.backup_*" | tail -1
+# Must show file size ~4MB
+
+# ✅ 2. HA is actually stopped (for advanced editing only)
+curl -f http://homeassistant.local:8123/api/ || echo "HA is stopped"
+
+# ✅ 3. After any file operation, verify size
+ssh ha "ls -lh /config/.storage/core.entity_registry"
+# Must be ~4MB, NOT 0 bytes
+
+# ✅ 4. If 0 bytes detected, restore IMMEDIATELY
+ssh ha "cp /config/.storage/core.entity_registry.bak /config/.storage/core.entity_registry"
+```
+
+#### Summary: Decision Tree
+
+```
+Need to enable/disable an entity?
+├─ HA is running? → YES → Use Web UI (ONLY safe method)
+├─ HA is running? → NO  → Can you start HA?
+   ├─ YES → Start HA, use Web UI
+   └─ NO  → Advanced registry editing (follow full procedure above)
+
+Need to bulk edit entities?
+├─ < 10 entities → Use Web UI (tedious but safest)
+└─ > 10 entities → Stop HA, edit registry with Python, verify at each step
+```
+
+**Default recommendation: ALWAYS use the Web UI unless absolutely impossible.**
+
+---
+
 ### Understanding Automation IDs vs Entity IDs
 
 **Critical distinction:**
