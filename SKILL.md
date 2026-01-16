@@ -383,6 +383,62 @@ ssh ha "cd /homeassistant && git checkout -- file.yaml"  # NEVER without diff fi
 
 **Evidence > Assumptions**: Always verify the nature of conflicts before discarding.
 
+### 🚨 MANDATORY: Git Conflict Resolution Protocol
+
+**When `git pull` fails with "local changes would be overwritten":**
+
+**NEVER run `git checkout` or `git reset` without inspection. Follow this protocol:**
+
+1. **INSPECT FIRST - What changed and why?**
+   ```bash
+   ssh ha "cd /homeassistant && git status"
+   ssh ha "cd /homeassistant && git diff <file>"
+   ```
+
+2. **ANALYZE: Categorize the changes**
+   - ✅ **My scp changes from THIS session** → Safe to discard (they're in commits being pulled)
+   - ⚠️ **Unknown changes** → STOP, ask user, do NOT discard
+   - ⚠️ **UI-generated changes** (automations.yaml, scenes.yaml) → May be legitimate
+   - ⚠️ **File timestamps different** → Investigate why
+
+3. **DECISION TREE:**
+   ```
+   Are these MY scp changes from this session?
+   ├─ YES, and commits being pulled contain these changes
+   │  └─ SAFE: git checkout <files> && git pull
+   ├─ YES, but commits DON'T contain these changes
+   │  └─ DANGER: Ask user - these changes would be LOST
+   └─ NO / UNKNOWN
+      └─ DANGER: Ask user - potential data loss
+   ```
+
+4. **Only then checkout:**
+   ```bash
+   ssh ha "cd /homeassistant && git checkout <file1> <file2>"
+   ssh ha "cd /homeassistant && git pull"
+   ```
+
+**Evidence > Assumptions**: The HA server may have legitimate changes from:
+- UI edits (automations, scripts, scenes created via UI)
+- Other tools (Studio Code Server, File Editor)
+- Manual SSH edits
+- Automated processes (integrations writing config)
+
+**Blindly discarding = Data loss with NO recovery**
+
+**Example from 2026-01-16 session:**
+```bash
+# ❌ WRONG: Immediately discarding without inspection
+ssh ha "cd /homeassistant && git checkout ."
+
+# ✅ RIGHT: Inspect first
+ssh ha "cd /homeassistant && git diff pyscript/portaleargo_telegram_notifier.py" | head -50
+# → Saw these were MY scp changes from earlier
+# → Commits being pulled (7bd5fa7, 5111060, a771ad2) contain these changes
+# → SAFE to discard
+ssh ha "cd /homeassistant && git checkout pyscript/portaleargo_telegram_notifier.py automations/tests/tests.yaml"
+```
+
 **When to use scp:**
 - 🚀 Rapid iteration and testing
 - 🔄 Frequent small adjustments
@@ -394,6 +450,65 @@ ssh ha "cd /homeassistant && git checkout -- file.yaml"  # NEVER without diff fi
 - 📦 Version control tracking
 - 🔒 Important configs
 - 👥 Changes to document
+
+### ⚙️ SCP + Git Pull Workflow: Avoiding Conflicts
+
+**Problem**: When you deploy via scp for rapid iteration, those changes create local modifications on the HA server. Later git pull operations will conflict.
+
+**Solution Patterns:**
+
+#### Pattern 1: SCP for Testing, Git for Final (RECOMMENDED)
+```bash
+# 1. Rapid iteration with scp
+scp automations/test.yaml ha:/homeassistant/automations/
+hass-cli service call automation.reload
+
+# Test, verify, iterate...
+
+# 2. When satisfied, commit locally
+git add automations/test.yaml
+git commit -m "Add test automation"
+git push
+
+# 3. Clean server state and pull
+ssh ha "cd /homeassistant && git checkout automations/test.yaml"  # Discard scp version
+ssh ha "cd /homeassistant && git pull"  # Pull committed version
+```
+
+#### Pattern 2: SCP-Only for Throwaway Changes
+```bash
+# For one-off tests that won't be committed
+scp test_script.py ha:/tmp/  # Use /tmp, not /homeassistant
+ssh ha "python /tmp/test_script.py"
+```
+
+#### Pattern 3: Git-Only for Production Changes
+```bash
+# Skip scp entirely
+git add <files>
+git commit -m "message"
+git push
+ssh ha "cd /homeassistant && git pull"
+hass-cli service call <reload_service>
+```
+
+**Decision Tree:**
+```
+Is this a quick test/debug change?
+├─ YES → SCP to /tmp or use Pattern 1 (scp → test → commit → git pull)
+└─ NO → Git-only workflow (Pattern 3)
+
+Multiple rapid iterations needed?
+├─ YES → SCP workflow, then final git commit + pull
+└─ NO → Git-only workflow
+```
+
+**Server State Awareness:**
+Always know what's on the server:
+```bash
+ssh ha "cd /homeassistant && git status"  # Check for uncommitted changes
+ssh ha "cd /homeassistant && git log --oneline -5"  # Check current commit
+```
 
 ## Reload vs Restart Decision Making
 
@@ -907,6 +1022,24 @@ hass-cli service call automation.trigger --arguments entity_id=automation.name
 ssh ha "ha core logs | grep -i 'automation' | tail -10"
 ```
 
+## 📁 Path Management: Project vs User vs Server
+
+**Common Path Confusion Sources:**
+
+| Context | Correct Path | WRONG Path |
+|---------|-------------|------------|
+| **Claudedocs** (investigation notes) | `/home/pantinor/data/repo/personal/hassio/.claude/claudedocs/` | `/home/pantinor/.claude/claudedocs/` ❌ |
+| **Serena memories** | `.serena/memories/` (project-relative) | `/home/pantinor/.serena/` ❌ |
+| **HA config on server** | `ha:/homeassistant/` (SSH alias) | `root@homeassistant.local:/config/` ❌ |
+| **Temp files on server** | `ha:/tmp/` | `ha:/homeassistant/tmp/` ❌ |
+| **Global Claude config** | `/home/pantinor/.claude/` | Project `.claude/` ❌ |
+
+**Rules:**
+1. **Investigation notes** → Always project `.claude/claudedocs/`
+2. **SSH operations** → Always use `ha:` alias (defined in `~/.ssh/config`)
+3. **Server paths** → Always `/homeassistant/` not `/config/` (they're symlinked but /homeassistant is git root)
+4. **Temp files** → `/tmp/` on server, NOT in git-tracked directories
+
 ## Best Practices Summary
 
 1. **Always check configuration** before restart: `ha core check`
@@ -921,6 +1054,38 @@ ssh ha "ha core logs | grep -i 'automation' | tail -10"
 10. **Test on actual device** for tablet dashboards
 11. **Color-code status** for visual feedback (red/green/amber)
 12. **Commit only stable versions** - test with scp first
+
+### ✅ Pre-Deployment Verification Checklist
+
+**Before ANY deployment (scp or git pull), verify:**
+
+#### File-Level Checks
+- [ ] Absolute paths used (no `~`, no relative paths)
+- [ ] SSH alias `ha:` used (not `root@homeassistant.local`)
+- [ ] Target directory correct (`/homeassistant/` not `/config/`)
+- [ ] File permissions will be preserved
+
+#### Git Checks (for git pull deployments)
+- [ ] Local commits pushed to remote
+- [ ] Server state inspected: `ssh ha "cd /homeassistant && git status"`
+- [ ] No uncommitted server changes OR inspected and categorized
+- [ ] Current server commit known: `git log --oneline -5`
+
+#### Service Call Checks (for automation/script changes)
+- [ ] Service schemas verified in Developer Tools first
+- [ ] All required parameters present
+- [ ] No deprecated parameters used (check HA version release notes)
+- [ ] Target entities exist and are correct entity IDs
+
+#### Reload vs Restart
+- [ ] Correct reload service chosen (automation.reload vs script.reload vs pyscript.reload)
+- [ ] Full restart NOT used for simple config changes
+- [ ] Restart only for: new integrations, configuration.yaml changes, breaking changes
+
+#### Post-Deployment Validation
+- [ ] Logs checked: `ssh ha "ha core log | grep -i error | tail -20"`
+- [ ] Automation/script manually triggered to verify
+- [ ] No unexpected errors in logs
 
 ## Workflow Decision Tree
 
@@ -1771,6 +1936,80 @@ action: telegram_bot.send_message
 data:
   target: [123456789]
 ```
+
+## 🐛 Common Mistake Patterns & Prevention
+
+### Mistake 1: Git Pull Without Inspection
+**Symptom**: "Your local changes would be overwritten by merge"
+
+**What NOT to do:**
+```bash
+# ❌ WRONG: Immediate checkout without inspection
+ssh ha "cd /homeassistant && git checkout ."
+```
+
+**Correct procedure:**
+```bash
+# ✅ RIGHT: Inspect → Categorize → Decide
+ssh ha "cd /homeassistant && git diff <file>"
+# Analyze: Are these MY changes from this session?
+# Only then: checkout if safe
+```
+
+**Prevention**: Always run `git status` before attempting `git pull`
+
+---
+
+### Mistake 2: SCP Then Git Pull Conflicts
+**Symptom**: Git pull fails due to local modifications from earlier scp deployments
+
+**What happened:**
+1. Deployed via scp for testing
+2. Later committed and pushed changes
+3. Git pull on server conflicts with scp-modified files
+
+**Prevention**:
+- Document which files were deployed via scp
+- Checkout scp files BEFORE git pull
+- OR use scp-only for /tmp, git-only for /homeassistant
+
+---
+
+### Mistake 3: Using Wrong Paths
+**Symptom**: File operations fail or files created in wrong location
+
+**Common errors:**
+- Claudedocs in `/home/pantinor/.claude/` instead of project `.claude/`
+- SSH to `root@homeassistant.local` instead of `ha:` alias
+- Target `/config/` instead of `/homeassistant/`
+
+**Prevention**: Use path reference table (see "Path Management" section)
+
+---
+
+### Mistake 4: Service Call Parameters Not Verified
+**Symptom**: Service call fails with "Extra keys not allowed" or "Required key missing"
+
+**What happened:**
+- Used service parameters based on old documentation
+- HA version changed service schema
+- Parameters removed or added
+
+**Prevention**:
+- ALWAYS verify in Developer Tools → Services before deploying
+- Check release notes for service schema changes
+- Test service call manually before adding to automation
+
+---
+
+### Mistake 5: Reload Instead of Restart (or vice versa)
+**Symptom**: Changes not applied despite "successful" reload
+
+**Common errors:**
+- Using `automation.reload` for integration config changes (needs restart)
+- Using full restart for simple automation edits (reload sufficient)
+
+**Prevention**: Use reload decision tree (see "Reload vs Restart" section)
 
 ---
 
