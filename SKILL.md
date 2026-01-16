@@ -948,6 +948,46 @@ Dashboard Change Needed
 
 ## Entity Registry Management
 
+### 🚨 CRITICAL SAFETY RULE - ALWAYS BACKUP REGISTRY FIRST
+
+**BEFORE making ANY modification to the entity registry, you MUST create a backup.**
+
+The entity registry (`.storage/core.entity_registry`) is a critical Home Assistant database file. If corrupted, **ALL entity metadata is lost** (labels, icons, areas, customizations, disabled states, etc.).
+
+**Mandatory backup procedure:**
+```bash
+# 1. ALWAYS backup BEFORE any registry operation
+ssh ha "cp /config/.storage/core.entity_registry /config/.storage/core.entity_registry.backup_$(date +%Y%m%d_%H%M%S)"
+
+# 2. Verify backup was created successfully
+ssh ha "ls -lh /config/.storage/core.entity_registry.backup*" | tail -1
+
+# 3. Only THEN proceed with registry modifications
+```
+
+**When this applies:**
+- Enabling/disabling entities via API or registry editing
+- Fixing duplicate `_2` entities
+- Modifying unique_ids or entity_ids
+- Running any script that touches the registry
+- Manual JSON editing of the registry file
+- Using REST API endpoints that modify entity registry
+
+**Recovery if corrupted:**
+```bash
+# Restore from backup
+ssh ha "cp /config/.storage/core.entity_registry.backup_YYYYMMDD_HHMMSS /config/.storage/core.entity_registry"
+# Then restart HA
+```
+
+**Home Assistant maintains automatic backups:**
+- `.storage/core.entity_registry.bak` - Most recent automatic backup
+- Check with: `ssh ha "ls -lht /config/.storage/*.entity_registry*"`
+
+**NEVER skip the backup step.** Registry corruption requires manual restoration and can cause significant downtime.
+
+---
+
 ### Understanding Automation IDs vs Entity IDs
 
 **Critical distinction:**
