@@ -1054,6 +1054,177 @@ ssh ha "ha core logs | grep -i 'automation' | tail -10"
 10. **Test on actual device** for tablet dashboards
 11. **Color-code status** for visual feedback (red/green/amber)
 12. **Commit only stable versions** - test with scp first
+13. **Add user-friendly logging** to automations and scripts - use emoji-based `system_log.write` for clarity
+
+### 📝 Logging Best Practices
+
+**Philosophy:** Logs should tell a story that humans can understand at a glance, not just technical execution steps.
+
+#### User-Friendly Logging Pattern
+
+**Use `system_log.write` with emoji indicators:**
+
+```yaml
+- action: system_log.write
+  data:
+    message: "🚪 Gate Opened: {{ person_name }} opened the gate"
+    level: info
+
+- action: system_log.write
+  data:
+    message: "🔊 Alexa Announcement: Sent to 3 devices → \"{{ message }}\""
+    level: info
+
+- action: system_log.write
+  data:
+    message: "📱 Phone Notification: Sent to {{ person_name }}'s phone"
+    level: info
+```
+
+#### Emoji Guide for Consistency
+
+| Emoji | Use Case | Example |
+|-------|----------|---------|
+| 🚪 | Door/gate events | "🚪 Gate Opened: Paolo opened the gate" |
+| 💡 | Light automation | "💡 Auto Light Off: Bedroom lights timed out" |
+| 🪟 | Window checks | "🪟 Window Check: Studio OPEN ⚠️" |
+| 🌙 | Night mode | "🌙 Motion Sensor: LOW sensitivity (night)" |
+| 📡 | MQTT/network | "📡 MQTT Published: topic → payload" |
+| 🔊 | Audio/Alexa | "🔊 Alexa Announcement: Sent to 3 devices" |
+| 📱 | Phone notifications | "📱 Phone Notification: Sent vibration alert" |
+| ⏰ | Time/schedule | "⏰ Time Window Check: Within hours ✓" |
+| 🌡️ | Temperature/climate | "🌡️ Thermostat: Set to 20°C" |
+| 🔌 | Power/device control | "🔌 Device Turned ON: Coffee maker" |
+| ⚠️ | Warnings | "⚠️ Battery Low: Front door sensor 15%" |
+| ❌ | Errors/failures | "❌ Failed: Could not reach device" |
+| ✅ | Success/confirmation | "✅ Completed: Backup finished" |
+
+#### Logging Level Guidelines
+
+**Use appropriate log levels:**
+
+```yaml
+# INFO - Normal operation, status updates
+level: info
+message: "🚪 Gate Opened: Paolo opened the gate"
+
+# WARNING - Attention needed, but not critical
+level: warning
+message: "⚠️ Window Alert: Studio window open during rain"
+
+# ERROR - Something failed that should have worked
+level: error
+message: "❌ Failed: Could not send notification to Paolo's phone"
+```
+
+#### Template Safety in Logs
+
+**Always check trigger context availability:**
+
+```yaml
+- variables:
+    person_name: >
+      {% if trigger.to_state is not defined %}
+        Test  # Manual trigger
+      {% else %}
+        {% set user_id = trigger.to_state.context.user_id %}
+        {% if user_id is none %}
+          Sistema  # System/automation trigger
+        {% else %}
+          {% set p = states.person | selectattr('attributes.user_id', 'eq', user_id) | list %}
+          {{ p[0].attributes.friendly_name if p | count == 1 else 'Sconosciuto' }}
+        {% endif %}
+      {% endif %}
+
+- action: system_log.write
+  data:
+    message: "🚪 Gate Opened: {{ person_name }} opened the gate"
+    level: info
+```
+
+**Why:** Manual triggers don't have `trigger.to_state`, natural triggers do. Always provide fallbacks.
+
+#### Suppress Verbose Technical Logs
+
+**Add to `configuration.yaml` to reduce noise:**
+
+```yaml
+logger:
+  default: info
+  logs:
+    homeassistant.components.automation: warning  # Hide step execution logs
+    homeassistant.components.script: warning      # Hide step execution logs
+```
+
+**Result:** Your custom `system_log.write` messages appear clearly, without cluttering step-by-step execution noise.
+
+#### When to Add Logging
+
+**Add logs at these key points:**
+
+1. **Automation trigger** - Who/what triggered it
+2. **Decision points** - Conditions evaluated (passed/failed)
+3. **External actions** - Notifications sent, devices controlled
+4. **Important state changes** - Mode changes, threshold crossings
+5. **Error conditions** - Failures, timeouts, unavailable devices
+
+**Don't log:**
+- Every single action in a sequence (too verbose)
+- Internal variable assignments (not user-facing)
+- Trivial state checks (unless they affect decisions)
+
+#### Example: Comprehensive Automation Logging
+
+```yaml
+- id: window_check_before_rain
+  alias: Window Check Before Rain
+  triggers:
+    - platform: state
+      entity_id: sensor.weather_forecast
+      to: 'rainy'
+  actions:
+    - variables:
+        open_windows: >
+          {% set windows = ['binary_sensor.window_studio', 'binary_sensor.window_salone'] %}
+          {{ windows | select('is_state', 'on') | list }}
+
+    - action: system_log.write
+      data:
+        message: "🌧️ Rain Check: Scanning {{ windows | length }} windows"
+        level: info
+
+    - if:
+        - condition: template
+          value_template: "{{ open_windows | length > 0 }}"
+      then:
+        - action: system_log.write
+          data:
+            message: "⚠️ Window Alert: {{ open_windows | length }} window(s) OPEN before rain!"
+            level: warning
+
+        - action: notify.telegram
+          data:
+            message: "⚠️ Chiudi le finestre! Sta per piovere."
+
+        - action: system_log.write
+          data:
+            message: "📱 Notification: Sent rain alert via Telegram"
+            level: info
+      else:
+        - action: system_log.write
+          data:
+            message: "✅ All Clear: All windows closed"
+            level: info
+```
+
+**Log output:**
+```
+🌧️ Rain Check: Scanning 2 windows
+⚠️ Window Alert: 1 window(s) OPEN before rain!
+📱 Notification: Sent rain alert via Telegram
+```
+
+Clear, informative, human-readable.
 
 ### ✅ Pre-Deployment Verification Checklist
 
