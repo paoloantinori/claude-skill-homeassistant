@@ -111,6 +111,33 @@ curl -s -X POST \
 3. ✅ If hass-cli fails → Check if .env was sourced, then use REST API
 4. ❌ NEVER use `ha core restart` as a lazy fallback
 
+### ⚠️ Common Mistake: Don't Restart on Warnings
+
+**CRITICAL:** If you see warnings after reload like:
+```
+Referenced entities automation.xyz are missing or not currently available
+```
+
+**DO NOT interpret this as requiring a restart!**
+
+**What to do instead:**
+1. ✅ **Wait 5-10 seconds** - The warning is usually just a timing issue from testing too quickly after reload
+2. ✅ **Check YAML syntax** - Validate YAML with Python/yamllint, check logs for parse errors
+3. ✅ **Verify logs** - Look for actual configuration errors in `ha core logs`
+4. ✅ **Test again** - Try triggering the automation after waiting
+
+**Only restart if:**
+- Configuration.yaml changes (new integrations, platforms, sensors)
+- Custom component updates requiring restart
+- User explicitly requests a restart
+- **NOT for warnings that appear immediately after a reload**
+
+**Why this matters:**
+- Reload takes ~2 seconds, restart takes ~30+ seconds
+- Restart disrupts all running automations and services
+- Most warnings after reload are timing issues, not configuration errors
+- Automation/Script YAML changes NEVER need a restart
+
 ## Quick Deployment (Claude Code)
 
 Two methods available for deploying config changes from Claude Code:
