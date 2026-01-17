@@ -138,6 +138,34 @@ Referenced entities automation.xyz are missing or not currently available
 - Most warnings after reload are timing issues, not configuration errors
 - Automation/Script YAML changes NEVER need a restart
 
+### 🛡️ MANDATORY: Always Ask Before Restart
+
+**CRITICAL GUARDRAIL:** If you ever determine that a restart might be necessary:
+
+**YOU MUST:**
+1. ❌ **STOP** - Do not execute `ha core restart` immediately
+2. 🤔 **EXPLAIN** - Tell the user why you think a restart is needed
+3. ❓ **ASK** - Request explicit permission from the user before proceeding
+4. ⏳ **WAIT** - Wait for user confirmation before running any restart command
+
+**Example:**
+```
+I believe a restart might be needed because [reason: configuration.yaml changes,
+new integration added, etc.]. However, restarts disrupt all running automations
+and services for ~30 seconds.
+
+May I proceed with restarting Home Assistant, or would you prefer to investigate
+further first?
+```
+
+**NEVER restart without explicit user permission, even if you're certain it's needed.**
+
+This guardrail exists because:
+- Restarts are disruptive and should be a conscious decision
+- There may be running automations or time-sensitive processes
+- The user may want to schedule the restart for a better time
+- You might be wrong about needing a restart (see warnings above)
+
 ## Quick Deployment (Claude Code)
 
 Two methods available for deploying config changes from Claude Code:
