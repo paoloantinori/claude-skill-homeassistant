@@ -201,6 +201,36 @@ export HASS_SSH_HOST=homeassistant.lan
 
 ## Remote Access Patterns
 
+### 🚨 PREFER hass-cli OVER curl
+
+**Always use hass-cli first.** Do NOT fall back to curl for HA API access unless hass-cli is genuinely broken.
+
+**Why:**
+- hass-cli handles authentication automatically (uses HASS_SERVER/HASS_TOKEN from env)
+- curl requires manual env var setup which often fails (source vs eval, subshell issues)
+- hass-cli provides consistent output formatting
+- Switching tools mid-session wastes time debugging env var issues
+
+**If hass-cli fails:**
+1. Check if `.env` was sourced: `echo $HASS_TOKEN | head -c 20`
+2. Try explicit sourcing: `eval "$(cat /home/pantinor/data/repo/personal/hassio/.env)"`
+3. Only then consider curl as last resort
+
+**hass-cli capabilities (use these instead of curl):**
+```bash
+# State queries
+hass-cli state get sensor.entity_name              # Basic state
+hass-cli state get sensor.entity_name --output yaml # With attributes
+
+# Service calls
+hass-cli service call automation.reload
+hass-cli service call automation.trigger --arguments entity_id=automation.name
+
+# Raw API access (when you need JSON)
+hass-cli raw get /api/states/sensor.entity_name
+hass-cli raw post /api/template --json '{"template": "{{ now() }}"}'
+```
+
 ### Using hass-cli (Local, via REST API)
 
 All `hass-cli` commands use environment variables automatically:
