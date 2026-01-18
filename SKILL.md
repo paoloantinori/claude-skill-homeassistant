@@ -219,8 +219,8 @@ export HASS_SSH_HOST=homeassistant.lan
 **hass-cli capabilities (use these instead of curl):**
 ```bash
 # State queries
-hass-cli state get sensor.entity_name              # Basic state
-hass-cli state get sensor.entity_name --output yaml # With attributes
+hass-cli state get sensor.entity_name              # Basic state (table format)
+hass-cli -o yaml state get sensor.entity_name      # With attributes (YAML format)
 
 # Service calls
 hass-cli service call automation.reload
@@ -229,6 +229,57 @@ hass-cli service call automation.trigger --arguments entity_id=automation.name
 # Raw API access (when you need JSON)
 hass-cli raw get /api/states/sensor.entity_name
 hass-cli raw post /api/template --json '{"template": "{{ now() }}"}'
+```
+
+### 🚨 hass-cli Global Options: MUST Come BEFORE Subcommand
+
+**CRITICAL:** Global options like `-o`/`--output` must appear BEFORE the subcommand, not after.
+
+```bash
+# ✅ CORRECT - global options BEFORE subcommand
+hass-cli -o yaml state get sensor.example
+hass-cli --output json state list
+hass-cli --timeout 30 service call automation.reload
+
+# ❌ WRONG - global options AFTER subcommand (will fail)
+hass-cli state get sensor.example --output yaml   # Error: No such option
+hass-cli state list --timeout 30                   # Error: No such option
+```
+
+**Global Options Reference:**
+
+| Option | Description | Default |
+|--------|-------------|---------|
+| `-o, --output` | Format: `json`, `yaml`, `table`, `auto`, `ndjson` | `auto` |
+| `--timeout INTEGER` | Network timeout in seconds | `5` |
+| `-s, --server TEXT` | Server URL (or use `HASS_SERVER` env) | `auto` |
+| `--token TEXT` | Bearer token (or use `HASS_TOKEN` env) | - |
+| `-v, --verbose` | Verbose mode | - |
+| `--columns TEXT` | Custom columns (e.g., `ENTITY=entity_id`) | - |
+| `--no-headers` | Omit table headers | - |
+| `--sort-by TEXT` | Sort by jsonpath expression | - |
+
+**Subcommand-Specific Options:**
+
+| Command | Option | Description |
+|---------|--------|-------------|
+| `service call` | `--arguments TEXT` | Comma-separated key=value pairs |
+| `state get` | (none) | Just takes ENTITY positional arg |
+| `state list` | (none) | Lists all states |
+
+**Common Usage Patterns:**
+```bash
+# Get entity as YAML (includes attributes)
+source .env && hass-cli -o yaml state get sensor.argo_nora_registro_compiti
+
+# List all automations as JSON
+source .env && hass-cli -o json state list | jq '.[] | select(.entity_id | startswith("automation."))'
+
+# Trigger automation with argument
+source .env && hass-cli service call automation.trigger --arguments entity_id=automation.notifiche_didup
+
+# Reload with extended timeout
+source .env && hass-cli --timeout 30 service call automation.reload
 ```
 
 ### Using hass-cli (Local, via REST API)
