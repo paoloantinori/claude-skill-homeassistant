@@ -1176,9 +1176,68 @@ ssh ha "ha core logs | grep -i 'automation' | tail -10"
 3. **Server paths** → Always `/homeassistant/` not `/config/` (they're symlinked but /homeassistant is git root)
 4. **Temp files** → `/tmp/` on server, NOT in git-tracked directories
 
+## 🛡️ MANDATORY: Validate BEFORE Deploy
+
+**CRITICAL RULE:** Always run `ha core check` BEFORE deploying changes, not after.
+
+```bash
+# ✅ CORRECT order
+# 1. Make local changes
+# 2. Validate configuration FIRST
+ssh ha "ha core check"
+# 3. Only if valid, deploy
+scp file.yaml ha:/homeassistant/
+# OR: git push && ssh ha "cd /homeassistant && git pull"
+# 4. Reload/restart as needed
+# 5. Verify behavior
+
+# ❌ WRONG order (catches problems too late)
+scp file.yaml ha:/homeassistant/
+hass-cli service call automation.reload
+# Error occurs...
+ssh ha "ha core check"  # Too late!
+```
+
+**Why this matters:**
+- Catches syntax errors before they reach production
+- Avoids deploying broken config to running HA instance
+- Prevents unnecessary restart attempts with invalid config
+- Follows "Evidence > assumptions" principle
+
+## Built-in Logger Filters (No Custom Components Needed)
+
+**HA has native regex log filtering** - always use this instead of custom components for suppressing noisy log messages.
+
+**Location:** `configuration.yaml` under `logger: filters:`
+
+```yaml
+logger:
+  default: info
+  filters:
+    <logger_name>:
+      - "^regex_pattern_to_filter"
+```
+
+**Example - Filter Ariston cycle messages:**
+```yaml
+logger:
+  filters:
+    homeassistant.components.sensor.recorder:
+      - "^Detected new cycle for sensor\\.ariston_"
+```
+
+**Finding the logger name:** Look at log message format:
+```
+INFO (Recorder) [homeassistant.components.sensor.recorder] Detected new cycle...
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                 This is the logger name to use in filters
+```
+
+**Reload behavior:** Logger filters require a **restart** to take effect. `homeassistant.reload_core_config` does NOT reload logger filters.
+
 ## Best Practices Summary
 
-1. **Always check configuration** before restart: `ha core check`
+1. **Validate configuration BEFORE deploy**: `ssh ha "ha core check"` (see section above)
 2. **Prefer reload over restart** when possible
 3. **Test automations manually** after deployment
 4. **Check logs** for errors after every change
