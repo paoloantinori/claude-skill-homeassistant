@@ -43,6 +43,79 @@ triggers:
 
 Expert-level Home Assistant configuration management with efficient workflows, remote CLI access, and verification protocols.
 
+## Table of Contents
+
+### 🔴 CRITICAL SAFETY (Read First)
+- [🚨🚨🚨 NEVER RESTART WITHOUT ASKING](#-critical-never-restart-without-asking-) - **MEMORIZE THIS**
+- [🚨 CRITICAL GUARDRAILS - Reload vs Restart](#-critical-guardrails---reload-vs-restart) - When to reload, when to restart
+- [🛡️ MANDATORY: Validate BEFORE Deploy](#-mandatory-validate-before-deploy) - Pre-deployment checklist
+
+### 🚀 Quick Start
+- [Prerequisites](#prerequisites) - Environment setup
+- [Quick Deployment](#quick-deployment-claude-code) - Get started fast
+- [Common Commands Quick Reference](#common-commands-quick-reference) - Cheat sheet
+
+### 📡 Remote Access & Tools
+- [Remote Access Patterns](#remote-access-patterns)
+  - [Prefer hass-cli over curl](#-prefer-hass-cli-over-curl)
+  - [hass-cli Global Options](#-hass-cli-global-options-must-come-before-subcommand)
+  - [hass-cli Command Structure Mistakes](#-hass-cli-command-structure-mistakes)
+- [🚨 Service Call Mistakes](#-service-call-mistakes-hass-cli-vs-rest-api) - hass-cli vs REST API patterns
+- [Template Evaluation via REST API](#template-evaluation-via-rest-api)
+
+### 🔄 Deployment Workflows
+- [Deployment Workflows](#deployment-workflows)
+  - [Standard Git Workflow](#standard-git-workflow-final-changes)
+  - [Rapid Development Workflow](#rapid-development-workflow-testingiteration)
+  - [Git Conflict Resolution Protocol](#-mandatory-git-conflict-resolution-protocol)
+  - [SCP + Git Pull Workflow](#-scp--git-pull-workflow-avoiding-conflicts)
+
+### ⚙️ Automation & Scripts
+- [Reload vs Restart Decision Making](#reload-vs-restart-decision-making)
+- [Automation Locations](#automation-locations) - Where automations live
+- [Automation Verification Workflow](#automation-verification-workflow) - Testing protocol
+
+### 🎨 Dashboard & UI
+- [Dashboard Management](#dashboard-management)
+  - [Dashboard Development Workflow](#dashboard-development-workflow)
+  - [View Types Decision Matrix](#view-types-decision-matrix)
+  - [Card Types Quick Reference](#card-types-quick-reference)
+  - [Common Template Patterns](#common-template-patterns)
+  - [Tablet Optimization](#tablet-optimization)
+  - [Common Dashboard Pitfalls](#common-dashboard-pitfalls)
+  - [Dashboard Debugging](#dashboard-debugging)
+- [Real-World Examples](#real-world-examples)
+
+### 📁 Path Management
+- [📁 Path Management: Project vs User vs Server](#-path-management-project-vs-user-vs-server) - Avoid path confusion
+
+### 🔧 Configuration & Tools
+- [Built-in Logger Filters](#built-in-logger-filters-no-custom-components-needed) - Suppress noisy logs
+- [Best Practices Summary](#best-practices-summary)
+  - [🧪 Template Testing Protocol (MANDATORY)](#-template-testing-protocol-mandatory)
+  - [📝 Logging Best Practices](#-logging-best-practices)
+- [Workflow Decision Tree](#workflow-decision-tree)
+
+### 🗃️ Entity Management
+- [Entity Registry Management](#entity-registry-management)
+  - [🚨 CRITICAL SAFETY RULE - ALWAYS BACKUP REGISTRY FIRST](#-critical-safety-rule--always-backup-registry-first)
+  - [Enabling/Disabling Entities Safely](#enablingdisabling-entities-safely)
+  - [Understanding Automation IDs vs Entity IDs](#understanding-automation-ids-vs-entity-ids)
+- [Automation Metadata Tools](#automation-metadata-tools) - Labels, icons, areas management
+
+### 🤖 AI & Integrations
+- [AI Assistant Integration](#ai-assistant-integration) - Conversation agent limitations, exposing entities
+- [Android TTS Notifications](#android-tts-notifications) - Text-to-speech patterns
+
+### 🔍 Troubleshooting
+- [🔍 Troubleshooting Integration Errors](#-troubleshooting-integration-errors)
+  - [🚨 CRITICAL RULE: Documentation First, Assumptions Never](#-critical-rule-documentation-first-assumptions-never)
+  - [Telegram Integration (2025.11+ Breaking Changes)](#telegram-integration-202511-breaking-changes)
+  - [General Integration Troubleshooting Workflow](#general-integration-troubleshooting-workflow)
+- [🐛 Common Mistake Patterns & Prevention](#-common-mistake-patterns--prevention)
+
+---
+
 ## Core Capabilities
 
 - Remote Home Assistant instance management via SSH and hass-cli
