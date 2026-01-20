@@ -1528,6 +1528,76 @@ states('sensor.temperature')|float(0)|round(1)  # Has default parameter
 state_attr('entity_id', 'attr.subattr')|default({})
 ```
 
+#### 🛡️ Prevention Pattern: Safe Template Defaults
+
+**The best way to avoid template errors is to use safe patterns from the start.**
+
+**Golden Rule:** When using conversion filters (`int`, `float`, `round`), ALWAYS provide the default as a **filter parameter**, not a separate `|default` filter.
+
+```yaml
+# ✅ SAFE PATTERNS - Use these by default:
+
+# Integer with default (parameter syntax)
+{{ state_attr('device_tracker.phone', 'gps_accuracy')|int(999) }}
+
+# Float with default (parameter syntax)
+{{ states('sensor.temperature')|float(0) }}
+
+# Round with default (parameter syntax)
+{{ value|round(1) }}
+{{ states('sensor.probability')|float(0)|round(1) }}
+
+# String defaults work fine with |default
+{{ state_attr('entity', 'source')|default('unknown') }}
+
+# ❌ UNSAFE PATTERNS - Avoid these:
+
+# Don't use |default before |int/|float
+{{ state_attr('device_tracker.phone', 'gps_accuracy')|default(999)|int }}  # ERROR!
+
+# Don't use |int/|float without default when value might be None
+{{ state_attr('device_tracker.phone', 'gps_accuracy')|int }}  # ERROR if None!
+```
+
+**Decision Tree for Safe Templates:**
+
+```
+Need to convert attribute/state to a number?
+│
+├─ Value might be None or missing?
+│  └─ Use filter parameter default: |int(999) or |float(0)
+│
+└─ Value is always present?
+   └─ Plain filter is OK: |int or |float
+
+Need a string default?
+│
+└─ Use |default('fallback')  # This works fine for strings
+```
+
+**Copy-Paste Safe Templates:**
+
+```yaml
+# GPS accuracy with safe default
+{{ state_attr('device_tracker.X', 'gps_accuracy')|int(999) }}
+
+# Temperature with safe default
+{{ states('sensor.temperature')|float(0) }}°C
+
+# Probability percentage with safe default
+{{ (state_attr('binary_sensor.X', 'probability')|float(0) * 100)|round(1) }}%
+
+# Distance with safe default
+{{ states('sensor.distance')|int(0) }} meters
+```
+
+**Why this prevents errors:**
+- Filter parameters (`|int(999)`) are evaluated BEFORE the filter processes the value
+- The `int` filter sees `None` and returns the parameter value `999`
+- `|default` creates a separate filter step that passes `None` to `int`, which fails
+
+**Key insight:** In Home Assistant's Jinja2, `int(value, default=999)` works, but `value|default(999)|int` doesn't because the default is "lost" in the filter chain.
+
 ### 📝 Logging Best Practices
 
 **Philosophy:** Logs should tell a story that humans can understand at a glance, not just technical execution steps.
