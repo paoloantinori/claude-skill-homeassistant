@@ -336,6 +336,110 @@ source .env && hass-cli service call automation.trigger --arguments entity_id=au
 source .env && hass-cli --timeout 30 service call automation.reload
 ```
 
+### 🚨 hass-cli Command Structure Mistakes
+
+**Common mistakes with non-existent subcommands, flags, and incorrect command patterns.**
+
+---
+
+### ❌ Mistake 1: Non-Existent `automation` Subcommand
+
+**Symptom:** `Error: No such command 'automation'`
+
+**What went wrong:**
+```bash
+# ❌ WRONG - No such subcommand exists
+hass-cli automation info --id automation.sveglia_nora
+hass-cli automation list
+hass-cli automation trigger automation.name
+```
+
+**Root Cause:**
+hass-cli does **not** have an `automation` subcommand. Automations are state entities in Home Assistant, accessed through the `state` commands.
+
+**Correct usage:**
+```bash
+# ✅ CORRECT - Use state commands for automations
+source .env && hass-cli state get automation.sveglia_nora
+
+# ✅ List all automations
+source .env && hass-cli state list | grep automation.
+
+# ✅ Get automation state with attributes
+source .env && hass-cli -o yaml state get automation.sveglia_nora
+
+# ✅ Trigger automation (use service call, not automation subcommand)
+source .env && hass-cli service call automation.trigger --arguments entity_id=automation.sveglia_nora
+```
+
+---
+
+### ❌ Mistake 2: Non-Existent `--attributes` Flag
+
+**Symptom:** `Error: No such option: --attributes`
+
+**What went wrong:**
+```bash
+# ❌ WRONG - state get doesn't have an --attributes flag
+hass-cli state get sensor.temperature --attributes
+```
+
+**Root Cause:**
+`state get` automatically returns **all attributes** without needing a flag. The `--attributes` flag simply doesn't exist in hass-cli.
+
+**Correct usage:**
+```bash
+# ✅ CORRECT - attributes are included by default
+source .env && hass-cli state get sensor.temperature
+
+# ✅ For cleaner output, use YAML format
+source .env && hass-cli -o yaml state get sensor.temperature
+
+# ✅ For JSON output
+source .env && hass-cli -o json state get sensor.temperature
+```
+
+---
+
+### ❌ Mistake 3: Global Options After Subcommand
+
+**Symptom:** `Error: No such option` (already covered in detail above)
+
+**Quick reminder:**
+```bash
+# ❌ WRONG
+hass-cli state get sensor.temp --output yaml
+
+# ✅ CORRECT - global options BEFORE subcommand
+hass-cli -o yaml state get sensor.temp
+```
+
+---
+
+### 📋 hass-cli Command Reference
+
+**Available Subcommands:**
+
+| Subcommand | Purpose | Example |
+|------------|---------|---------|
+| `state` | Get/list entity states | `hass-cli state get sensor.temp` |
+| `service` | Call Home Assistant services | `hass-cli service call automation.reload` |
+| `raw` | Direct REST API access | `hass-cli raw get /api/states` |
+| `info` | System information (NOT entity-specific) | `hass-cli info` |
+
+**Common Entity Access Patterns:**
+
+| Task | Command |
+|------|---------|
+| Get automation state | `hass-cli state get automation.name` |
+| List all automations | `hass-cli state list \| grep automation.` |
+| Get sensor with attributes | `hass-cli -o yaml state get sensor.name` |
+| Trigger automation | `hass-cli service call automation.trigger --arguments entity_id=automation.name` |
+
+**Key Takeaway:** If a subcommand like `automation info`, `automation list`, or `--attributes` seems like it "should" exist but doesn't, check the actual command structure with `hass-cli --help` or `hass-cli <subcommand> --help`.
+
+---
+
 ### Using hass-cli (Local, via REST API)
 
 All `hass-cli` commands use environment variables automatically:
