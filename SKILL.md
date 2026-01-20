@@ -384,6 +384,147 @@ hass-cli service call automation.reload
 hass-cli raw get /api/error/all
 ```
 
+## 🚨 Service Call Mistakes: hass-cli vs REST API
+
+**Common mistake patterns when choosing between hass-cli and REST API for service calls.**
+
+### ❌ Mistake 1: hass-cli with Nested Data
+
+**Symptom:** `ValueError: dictionary update sequence element #0 has length 1; 2 is required`
+
+**What went wrong:**
+```bash
+# ❌ WRONG: hass-cli --arguments with JSON and nested data
+hass-cli service call notify.mobile_app_telefono_clelia \
+  --arguments '{"message":"command_high_accuracy_mode","data":{"command":"turn_off"}}'
+```
+
+**Root Cause:**
+1. `--arguments` expects **comma-separated `key=value` pairs**, NOT JSON
+2. `--arguments` **cannot handle nested dictionaries** like `data: {command: "turn_off"}`
+
+**Correct hass-cli usage (simple cases only):**
+```bash
+# ✅ Works for flat structures
+hass-cli service call automation.trigger --arguments 'entity_id=automation.name'
+
+# ❌ Does NOT work for nested data like:
+# data: {command: "turn_off"}  ← Nested = hass-cli cannot handle
+```
+
+**Lesson:** hass-cli is **not suitable** for service calls with nested data structures.
+
+---
+
+### ❌ Mistake 2: REST API Wrong Payload Format
+
+**Symptom:** `400: Bad Request`
+
+**What went wrong:**
+```bash
+# ❌ WRONG: Incorrect payload format
+curl -s -X POST \
+  -H "Authorization: Bearer $HASS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"entity_id":"notify.mobile_app_telefono_clelia","message":"command_high_accuracy_mode","data":{"command":"turn_off"}}' \
+  "$HASS_SERVER/api/services/notify/mobile_app_telefono_clelia"
+```
+
+**Root Cause:**
+1. `entity_id` should NOT be in the payload (service endpoint already specifies it)
+2. Missing `target` array (required for notify services)
+
+**Correct format:**
+```bash
+# ✅ CORRECT: Proper notify service payload
+curl -s -X POST \
+  -H "Authorization: Bearer $HASS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"message":"command_high_accuracy_mode","data":{"command":"turn_off"},"target":["mobile_app_telefono_clelia"]}' \
+  "$HASS_SERVER/api/services/notify/mobile_app_telefono_clelia"
+```
+
+**Payload comparison:**
+
+| Element | Wrong | Correct |
+|---------|-------|---------|
+| `entity_id` | In payload | ❌ Don't include (endpoint specifies service) |
+| `target` | Missing | ✅ Required array for notify services |
+| `message` | ✅ Correct | ✅ Correct |
+| `data` | ✅ Correct | ✅ Correct |
+
+---
+
+### ✅ Decision Tree: hass-cli vs REST API
+
+```
+Need to call a HA service?
+│
+├─ Simple flat parameters (no nested data)?
+│  └─ Use hass-cli
+│     hass-cli service call automation.trigger --arguments 'entity_id=automation.name'
+│
+└─ Nested data structures or complex payloads?
+   └─ Use REST API with curl
+      curl -X POST "$HASS_SERVER/api/services/<domain>/<service>" \
+        -H "Authorization: Bearer $HASS_TOKEN" \
+        -H "Content-Type: application/json" \
+        -d '{ ... JSON payload ... }'
+```
+
+---
+
+### 📋 Quick Reference: Correct Payload Formats
+
+**hass-cli (flat parameters only):**
+```bash
+hass-cli service call <domain>.<service> --arguments 'key1=value1,key2=value2'
+```
+
+**REST API (supports nested data):**
+```json
+{
+  "entity_id": "domain.service_name",     // For non-notify services
+  "message": "...",                        // For notify services
+  "data": {                                // Nested data
+    "key": "value",
+    "nested": {
+      "key2": "value2"
+    }
+  },
+  "target": ["entity_id"]                  // For notify services only
+}
+```
+
+---
+
+### 📱 Mobile App Commands Reference
+
+| Command | REST API Payload |
+|---------|-----------------|
+| High accuracy ON | `{"message":"command_high_accuracy_mode","data":{"command":"turn_on"},"target":["mobile_app_xyz"]}` |
+| High accuracy OFF | `{"message":"command_high_accuracy_mode","data":{"command":"turn_off"},"target":["mobile_app_xyz"]}` |
+| Background fetch | `{"message":"command_background_fetch","data":{},"target":["mobile_app_xyz"]}` |
+
+**Example:** Disable high accuracy mode
+```bash
+source .env && curl -s -X POST \
+  -H "Authorization: Bearer $HASS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"message":"command_high_accuracy_mode","data":{"command":"turn_off"},"target":["mobile_app_telefono_clelia"]}' \
+  "$HASS_SERVER/api/services/notify/mobile_app_telefono_clelia"
+```
+
+---
+
+### Key Takeaways
+
+1. **hass-cli `--arguments` = flat key=value pairs only** - No JSON, no nesting
+2. **REST API = full JSON support** - Use for nested data structures
+3. **Notify services need `target` array** - Specifies which device(s) to notify
+4. **Never include `entity_id` in REST payload** - The URL endpoint specifies the service
+5. **Test in Developer Tools first** - Verify service parameters before scripting
+
 ## Template Evaluation via REST API
 
 Evaluate Jinja2 templates remotely using the `/api/template` endpoint. **Critical escaping rules apply.**
