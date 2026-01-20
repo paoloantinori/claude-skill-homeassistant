@@ -1432,19 +1432,101 @@ INFO (Recorder) [homeassistant.components.sensor.recorder] Detected new cycle...
 
 ## Best Practices Summary
 
-1. **Validate configuration BEFORE deploy**: `ssh ha "ha core check"` (see section above)
-2. **Prefer reload over restart** when possible
-3. **Test automations manually** after deployment
-4. **Check logs** for errors after every change
-5. **Use scp for rapid iteration**, git for final changes
-6. **Verify outcomes** - don't assume it worked
-7. **Use Context7** for current documentation
-8. **Test templates in Dev Tools** before adding to dashboards
-9. **Validate JSON syntax** before deploying dashboards
-10. **Test on actual device** for tablet dashboards
-11. **Color-code status** for visual feedback (red/green/amber)
-12. **Commit only stable versions** - test with scp first
-13. **Add user-friendly logging** to automations and scripts - use emoji-based `system_log.write` for clarity
+1. **🧪 TEST templates BEFORE suggesting fixes** - ALWAYS use `/api/template` endpoint to verify expressions work before modifying code. See "Template Testing Protocol" below.
+2. **Validate configuration BEFORE deploy**: `ssh ha "ha core check"` (see section above)
+3. **Prefer reload over restart** when possible
+4. **Test automations manually** after deployment
+5. **Check logs** for errors after every change
+6. **Use scp for rapid iteration**, git for final changes
+7. **Verify outcomes** - don't assume it worked
+8. **Use Context7** for current documentation
+9. **Test templates in Dev Tools** before adding to dashboards
+10. **Validate JSON syntax** before deploying dashboards
+11. **Test on actual device** for tablet dashboards
+12. **Color-code status** for visual feedback (red/green/amber)
+13. **Commit only stable versions** - test with scp first
+14. **Add user-friendly logging** to automations and scripts - use emoji-based `system_log.write` for clarity
+
+### 🧪 Template Testing Protocol (MANDATORY)
+
+**🚨 CRITICAL: Before suggesting ANY template fix, you MUST test it via the REST API.**
+
+**Why:** Jinja2 filter behavior in Home Assistant can be counterintuitive. Testing prevents breaking working automations with "fixes" that don't actually work.
+
+#### How to Test Templates
+
+```bash
+# Test a simple template
+source .env && curl -s -X POST \
+  -H "Authorization: Bearer $HASS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"template": "{{ states('\''sensor.example'\'') }}"}' \
+  "$HASS_SERVER/api/template"
+
+# Test with state_attr and defaults
+source .env && curl -s -X POST \
+  -H "Authorization: Bearer $HASS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"template": "{{ state_attr('\''device_tracker.phone'\'', '\''gps_accuracy'\'')|int(999) }}"}' \
+  "$HASS_SERVER/api/template"
+
+# Test multi-line templates (use \\n for newlines in JSON)
+source .env && curl -s -X POST \
+  -H "Authorization: Bearer $HASS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"template": "Line 1\\nLine 2: {{ now() }}"}' \
+  "$HASS_SERVER/api/template"
+```
+
+#### Common Jinja2 Filter Pitfalls
+
+| Pattern | Works? | Explanation |
+|---------|--------|-------------|
+| `value|int(999)` | ✅ | `int` filter with default parameter |
+| `value|default(999)|int` | ❌ | `default` returns string/None, `int` can't handle it |
+| `value|default('unknown')` | ✅ | String default works fine |
+| `value|int` | ❌ | Fails if value is `None` (no default) |
+
+**Example from 2026-01-20 session:**
+```yaml
+# ❌ BROKEN - This was in the automation:
+{{ state_attr('device_tracker.phone', 'gps_accuracy')|default(999)|int }}
+
+# ✅ FIXED - Changed to:
+{{ state_attr('device_tracker.phone', 'gps_accuracy')|int(999) }}
+```
+
+**The error:** `ValueError: int got invalid input 'None'` with "but no default was specified"
+**The root cause:** `|default(999)|int` passes `None` to `int` filter, which doesn't recognize it as having a default.
+
+#### Testing Checklist
+
+Before suggesting any template fix:
+- [ ] Tested the CURRENT broken expression - confirmed it fails
+- [ ] Tested the PROPOSED fix - confirmed it works
+- [ ] Tested edge cases (None, missing attribute, wrong type)
+- [ ] Compared both outputs side-by-side
+
+**Only then suggest the fix.**
+
+#### Quick Test Patterns
+
+```bash
+# Test state attribute exists
+state_attr('entity_id', 'attribute_name')|default('not set')
+
+# Test state attribute with int conversion and default
+state_attr('entity_id', 'attr')|int(999)  # NOT: |default(999)|int
+
+# Test state with default
+states('sensor.missing')|default('unknown')
+
+# Test numeric state with conversion
+states('sensor.temperature')|float(0)|round(1)  # Has default parameter
+
+# Test nested attribute access
+state_attr('entity_id', 'attr.subattr')|default({})
+```
 
 ### 📝 Logging Best Practices
 
