@@ -122,6 +122,14 @@ Before starting, verify the environment has:
 - Core configuration changes
 - New packages added
 
+### Guardrail Checklist:
+0. ✅ **Source .env first:** `source /home/pantinor/data/repo/personal/hassio/.env`
+1. ✅ Identify what changed (automations? scripts? templates?)
+2. ✅ Use the appropriate reload service call
+3. ✅ If hass-cli fails → Check if .env was sourced, then use REST API
+4. ❌ NEVER use `ha core restart` as a lazy fallback
+
+
 ### If hass-cli fails (401/connection error) - Use REST API fallback:
 ```bash
 # ✅ CORRECT: Use REST API for reload (non-disruptive)
@@ -134,13 +142,6 @@ curl -s -X POST \
 # ❌ WRONG: Do NOT fall back to ha core restart for simple reloads!
 # ssh ha "ha core restart"  # NEVER do this for automations/scripts/templates
 ```
-
-### Guardrail Checklist:
-0. ✅ **Source .env first:** `source /home/pantinor/data/repo/personal/hassio/.env`
-1. ✅ Identify what changed (automations? scripts? templates?)
-2. ✅ Use the appropriate reload service call
-3. ✅ If hass-cli fails → Check if .env was sourced, then use REST API
-4. ❌ NEVER use `ha core restart` as a lazy fallback
 
 ### 🛡️ Pre-Restart MANDATORY Checklist
 
