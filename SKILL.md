@@ -490,6 +490,31 @@ hass-cli -o yaml state get sensor.temp
 
 ---
 
+### ❌ Mistake 4: Using `state get` Without Entity Argument
+
+**Symptom:** `Error: Missing argument 'ENTITY'`
+
+**What went wrong:**
+```bash
+# ❌ WRONG - state get REQUIRES an entity argument
+hass-cli state get | grep automation
+hass-cli state get
+```
+
+**Root Cause:**
+`state get` is for retrieving a **specific entity's state**, not listing all states. It requires an `entity_id` positional argument and cannot be piped from.
+
+**Correct usage:**
+```bash
+# ✅ CORRECT - Use state list to see all states
+source .env && hass-cli state list | grep automation.
+
+# ✅ CORRECT - Use state get for specific entity
+source .env && hass-cli state get automation.sveglia_nora
+```
+
+---
+
 ### 📋 hass-cli Command Reference
 
 **Available Subcommands:**
