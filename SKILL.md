@@ -128,6 +128,84 @@ Expert-level Home Assistant configuration management with efficient workflows, r
 - Template syntax patterns and debugging
 - Tablet-optimized UI design
 
+## 🧠 Auto-Improve Behavior: Learn from Command Failures
+
+**MANDATORY BEHAVIOR PATTERN - Apply to ALL command invocations:**
+
+When any command fails, you MUST follow this auto-improve cycle:
+
+### 1. Error Analysis Phase
+**When a command fails:**
+- ✅ Read the error message carefully
+- ✅ Determine if it's a **usage error** (wrong command syntax/flags) vs **system error** (network, auth, permissions)
+- ✅ Check if you misunderstood the tool's API or requirements
+
+### 2. Iterative Correction Phase
+**If it's a usage error (your mistake):**
+- ✅ Try correcting the invocation with proper syntax
+- ✅ Check `--help` or official docs if uncertain
+- ✅ Try alternative valid approaches
+- ✅ Continue until success OR clearly impossible
+
+**If it's a system error (not your mistake):**
+- ⚠️ Report to user for investigation
+- ⏭️ Skip to next task
+
+### 3. Learning & Documentation Phase
+**AFTER successfully completing the original task:**
+- ✅ Identify what you did wrong
+- ✅ Suggest documentation updates to prevent recurrence:
+  - Update this skill (SKILL.md) with new "Common Mistake" entry
+  - Update project CLAUDE.md if pattern applies across project
+  - Add to Serena memories for cross-session learning
+- ✅ Present suggestion to user for approval
+
+### Example Pattern
+
+**What happened:**
+```bash
+# Attempt 1: Wrong usage
+$ hass-cli state get | grep automation
+Error: Missing argument 'ENTITY'
+
+# ❌ WRONG: Jump to curl without analyzing error
+$ curl -s ... | grep automation
+```
+
+**What SHOULD have happened:**
+```bash
+# Attempt 1: Wrong usage
+$ hass-cli state get | grep automation
+Error: Missing argument 'ENTITY'
+
+# ✅ CORRECT: Analyze error → "state get needs entity argument"
+# ✅ CORRECT: Try alternative approach
+$ hass-cli state list | grep automation
+# Success!
+
+# ✅ CORRECT: After task complete, suggest documentation update
+# "I should add this pattern to Common Mistakes section"
+```
+
+### Success Indicators
+
+You followed auto-improve correctly if:
+1. ✅ You read the error message before switching tools
+2. ✅ You tried correcting the command at least once
+3. ✅ You only gave up after clear impossibility
+4. ✅ You suggested documentation update after success
+
+### Anti-Patterns to Avoid
+
+❌ **Tool switching without analysis**: Error → immediately try different tool
+❌ **Assumption-based retries**: Guessing at fixes without reading error
+❌ **Silent failures**: Giving up without understanding why
+❌ **No learning**: Completing task but not documenting the pattern
+
+**This behavior is MANDATORY for ALL HA Manager skill operations.**
+
+---
+
 ## Prerequisites
 
 Before starting, verify the environment has:
