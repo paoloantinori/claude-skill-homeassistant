@@ -43,6 +43,22 @@ triggers:
 
 Expert-level Home Assistant configuration management with efficient workflows, remote CLI access, and verification protocols.
 
+## 🚨🚨🚨 CRITICAL RULES (READ FIRST)
+
+**1. NEVER RESTART WITHOUT ASKING** → See [docs/01_critical_safety.md](docs/01_critical_safety.md)
+**2. ALWAYS use hass-cli, NEVER curl** → See [docs/07_remote_access.md](docs/07_remote_access.md)
+
+### Quick Rule Reference
+
+| Rule | Violation | Correct Approach |
+|------|-----------|------------------|
+| **NO restart without asking** | `ssh ha "ha core restart"` (without permission) | Always ask first: "May I restart?" |
+| **NO curl for HA API** | `curl -H "Authorization: Bearer $TOKEN" $SERVER/api/...` | Use `hass-cli state get/service call` |
+| **NO grep for SSH fingerprint** | `ssh ha ... \| grep -v "Host key..."` | Use `ssh -oVisualHostKey=no ha ...` |
+| **NO blind git checkout** | `ssh ha "cd /homeassistant && git checkout ."` | Always `git diff` first to inspect |
+
+---
+
 ## 🚨 CRITICAL: Start Here
 
 **Before any Home Assistant operation, read these:**
@@ -50,6 +66,7 @@ Expert-level Home Assistant configuration management with efficient workflows, r
 1. **[docs/01_critical_safety.md](docs/01_critical_safety.md)** - NEVER RESTART WITHOUT ASKING, Reload vs Restart decision tree
 2. **[docs/02_deployment.md](docs/02_deployment.md)** - Git vs SCP workflows, conflict resolution
 3. **[docs/03_validation.md](docs/03_validation.md)** - Pre-deployment validation checklist
+4. **[docs/07_remote_access.md](docs/07_remote_access.md)** - **hass-cli MANDATORY, curl prohibited**
 
 ## 📚 Documentation Index
 

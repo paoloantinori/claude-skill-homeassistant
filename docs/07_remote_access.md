@@ -4,40 +4,178 @@
 
 ---
 
-## Prefer hass-cli Over curl
+## 🚨 CRITICAL: Use hass-cli, NOT curl
 
-**Always use hass-cli first.** Do NOT fall back to curl unless hass-cli is genuinely broken.
+**hass-cli is MANDATORY for all Home Assistant API interactions.**
 
-### Why hass-cli?
+**NEVER use curl unless:**
+1. hass-cli is genuinely broken OR
+2. You need an API endpoint that hass-cli cannot access
 
-| Benefit | Explanation |
-|---------|-------------|
-| **Authentication** | Handles HASS_SERVER/HASS_TOKEN automatically |
-| **Consistency** | Predictable output formatting |
-| **Efficiency** | No env var debugging |
-| **Features** | Covers most HA API operations |
+### Why This Rule?
 
-### hass-cli Capabilities
+| Aspect | hass-cli | curl |
+|--------|----------|------|
+| Authentication | ✅ Automatic (HASS_TOKEN) | ❌ Manual headers |
+| Environment | ✅ Uses HASS_SERVER | ❌ Manual URLs |
+| Output formatting | ✅ Structured (table/yaml/json) | ❌ Raw JSON |
+| Error handling | ✅ Clear messages | ❌ HTTP codes only |
+| Command complexity | ✅ Simple | ❌ Long, error-prone |
+| Maintainability | ✅ Self-documenting | ❌ Hard to read |
+
+---
+
+## Decision Table: When to Use What
+
+| Scenario | Tool | Example |
+|----------|------|---------|
+| Get entity state | ✅ **hass-cli** | `hass-cli state get sensor.example` |
+| List entities | ✅ **hass-cli** | `hass-cli state list` |
+| Call service | ✅ **hass-cli** | `hass-cli service call automation.reload` |
+| Reload core config | ✅ **hass-cli** | `hass-cli service call homeassistant.reload_core_config` |
+| Get raw JSON | ✅ **hass-cli -o json** | `hass-cli -o json state get sensor.example` |
+| Call custom API | ⚠️ **hass-cli raw** | `hass-cli raw post /api/custom` |
+| Test template | ✅ **hass-cli raw** | `hass-cli raw post /api/template --json '{"template": "..."}'` |
+| **hass-cli genuinely broken** | ⚠️ **curl ONLY** | Last resort after troubleshooting |
+
+---
+
+## curl → hass-cli Translation Guide
+
+**Memorize these patterns. Never use the curl equivalents.**
+
+### State Operations
+
+| Task | ❌ WRONG (curl) | ✅ CORRECT (hass-cli) |
+|------|----------------|---------------------|
+| Get state | `curl -H "Authorization: Bearer $TOKEN" $SERVER/api/states/sensor.example` | `hass-cli state get sensor.example` |
+| Get with attributes | `curl ... \| jq '.attributes'` | `hass-cli -o yaml state get sensor.example` |
+| List all states | `curl ... /api/states` | `hass-cli state list` |
+| Filter states | `curl ... \| jq '.[] \| select(...)'` | `hass-cli state list \| grep pattern` |
+
+### Service Calls
+
+| Task | ❌ WRONG (curl) | ✅ CORRECT (hass-cli) |
+|------|----------------|---------------------|
+| Reload automations | `curl -X POST -H "Authorization: Bearer $TOKEN" $SERVER/api/services/automation/reload` | `hass-cli service call automation.reload` |
+| Reload core config | `curl -X POST -H "Authorization: Bearer $TOKEN" $SERVER/api/services/homeassistant/reload_core_config` | `hass-cli service call homeassistant.reload_core_config` |
+| Trigger automation | `curl -X POST -d '{"entity_id": "automation.name"}' ...` | `hass-cli service call automation.trigger --arguments entity_id=automation.name` |
+| Call script | `curl -X POST ... /api/services/script/turn_on` | `hass-cli service call script.turn_on` |
+
+### Template Evaluation
+
+| Task | ❌ WRONG (curl) | ✅ CORRECT (hass-cli) |
+|------|----------------|---------------------|
+| Test template | `curl -d '{"template": "{{ now() }}"}' -H "Authorization: Bearer $TOKEN" $SERVER/api/template` | `hass-cli raw post /api/template --json '{"template": "{{ now() }}"}'` |
+
+### Raw JSON Output
+
+| Task | ❌ WRONG (curl) | ✅ CORRECT (hass-cli) |
+|------|----------------|---------------------|
+| Get JSON for parsing | `curl -H "Authorization: Bearer $TOKEN" $SERVER/api/states/sensor.example` | `hass-cli -o json state get sensor.example` |
+| Pipe to jq | `curl ... \| jq '.state'` | `hass-cli -o json state get sensor.example \| jq '.state'` |
+
+---
+
+## Troubleshooting Before Using curl
+
+**If hass-cli "doesn't work", FIX IT. Do NOT switch to curl.**
+
+### Step 1: Verify Environment
 
 ```bash
-# State queries
-hass-cli state get sensor.entity_name              # Basic state
-hass-cli -o yaml state get sensor.entity_name      # With attributes
+# Check if .env is sourced
+echo $HASS_TOKEN | head -c 20
 
-# Service calls
-hass-cli service call automation.reload
-hass-cli service call automation.trigger --arguments entity_id=automation.name
-
-# Raw API access (when you need JSON)
-hass-cli raw get /api/states/sensor.entity_name
-hass-cli raw post /api/template --json '{"template": "{{ now() }}"}'
+# If empty, source it
+source /home/pantinor/data/repo/personal/hassio/.env
 ```
 
-### If hass-cli Fails
+### Step 2: Test Basic Connectivity
 
-1. Check `.env` sourced: `echo $HASS_TOKEN | head -c 20`
-2. Try explicit sourcing: `eval "$(cat /path/to/.env)"`
-3. Only then consider curl as last resort
+```bash
+# Simple state query
+hass-cli state get sensor.example
+
+# If this fails, the issue is NOT with hass-cli
+# Check: network, HA server status, credentials
+```
+
+### Step 3: Check Output Format Issues
+
+```bash
+# Want JSON? Use -o flag
+hass-cli -o json state get sensor.example
+
+# Want YAML with attributes? Use -o yaml
+hass-cli -o yaml state get sensor.example
+
+# Want raw output? Use raw subcommand
+hass-cli raw get /api/states/sensor.example
+```
+
+### Step 4: Last Resort - Only Then Consider curl
+
+**Valid reasons to use curl:**
+- hass-cli has a confirmed bug blocking your use case
+- You need an API endpoint not exposed by hass-cli (very rare)
+- You're accessing a non-Home Assistant API
+
+**Invalid reasons (FIX THESE instead):**
+- "curl command is shorter" → NO, hass-cli is simpler
+- "I know curl better" → Learn hass-cli, it's worth it
+- "Need JSON output" → Use `hass-cli -o json`
+- "Need raw API access" → Use `hass-cli raw`
+
+---
+
+## hass-cli Capabilities Reference
+
+### State Queries
+
+```bash
+# Basic state
+hass-cli state get sensor.entity_name
+
+# With attributes (YAML)
+hass-cli -o yaml state get sensor.entity_name
+
+# JSON output for parsing
+hass-cli -o json state get sensor.entity_name
+
+# List and filter
+hass-cli state list | grep automation
+hass-cli state list | jq '.[] | select(.entity_id | startswith("sensor."))'
+```
+
+### Service Calls
+
+```bash
+# Reload automations
+hass-cli service call automation.reload
+
+# Trigger with arguments
+hass-cli service call automation.trigger --arguments entity_id=automation.name
+
+# Call script
+hass-cli service call script.my_script
+
+# Reload core config
+hass-cli service call homeassistant.reload_core_config
+```
+
+### Raw API Access
+
+```bash
+# GET request
+hass-cli raw get /api/states/sensor.entity_name
+
+# POST with JSON
+hass-cli raw post /api/template --json '{"template": "{{ now() }}"}'
+
+# Custom endpoints
+hass-cli raw post /api/services/custom/do_something --json '{"data": "value"}'
+```
 
 ---
 

@@ -123,7 +123,74 @@ Then `ssh ha` never shows fingerprint, no grep needed.
 
 ---
 
-## Mistake 7: Stuck in Restart Verification Loop
+## Mistake 7: Using curl Instead of hass-cli
+
+**Symptom:** Commands are overly long, hard to read, and require manual authentication headers
+
+**What happened:**
+- Defaulted to curl patterns from prior experience
+- Didn't realize hass-cli covers all Home Assistant API operations
+- Wanted "raw JSON" and didn't know about `hass-cli -o json`
+
+**❌ WRONG:**
+```bash
+# Overly complex, error-prone
+curl -s -H "Authorization: Bearer $HASS_TOKEN" \
+  -H "Content-Type: application/json" \
+  http://$HASS_SERVER/api/states/binary_sensor.example
+
+curl -s -X POST -H "Authorization: Bearer $HASS_TOKEN" \
+  -H "Content-Type: application/json" \
+  http://$HASS_SERVER/api/services/homeassistant/reload_core_config
+
+curl -s -d '{"template": "{{ now() }}"}' \
+  -H "Authorization: Bearer $HASS_TOKEN" \
+  -H "Content-Type: application/json" \
+  http://$HASS_SERVER/api/template
+```
+
+**✅ CORRECT:**
+```bash
+# Simple, clear, self-documenting
+hass-cli state get binary_sensor.example
+
+hass-cli service call homeassistant.reload_core_config
+
+hass-cli raw post /api/template --json '{"template": "{{ now() }}"}'
+```
+
+**Common curl → hass-cli translations:**
+
+| Task | ❌ curl (WRONG) | ✅ hass-cli (CORRECT) |
+|------|----------------|----------------------|
+| Get state | `curl -H "Authorization: Bearer $TOKEN" $SERVER/api/states/sensor.x` | `hass-cli state get sensor.x` |
+| Get JSON | `curl ... \| jq '.state'` | `hass-cli -o json state get sensor.x` |
+| List entities | `curl ... /api/states` | `hass-cli state list` |
+| Reload automations | `curl -X POST ... /api/services/automation/reload` | `hass-cli service call automation.reload` |
+| Reload core config | `curl -X POST ... /api/services/homeassistant/reload_core_config` | `hass-cli service call homeassistant.reload_core_config` |
+| Trigger automation | `curl -X POST -d '{"entity_id": "..."}' ...` | `hass-cli service call automation.trigger --arguments entity_id=automation.name` |
+| Test template | `curl -d '{"template": "..."}' ... /api/template` | `hass-cli raw post /api/template --json '{"template": "..."}'` |
+
+**When curl IS acceptable (rare):**
+- hass-cli has a confirmed bug blocking your use case
+- Accessing a non-Home Assistant API
+- Integration testing with specific HTTP requirements
+
+**Prevention:**
+- Memorize: hass-cli is MANDATORY for all HA API interactions
+- Learn `hass-cli -o json` for JSON output (no curl needed)
+- Learn `hass-cli raw` for direct API access (no curl needed)
+- See `docs/07_remote_access.md` for complete translation guide
+
+**Troubleshooting before using curl:**
+1. Verify `.env` is sourced: `echo $HASS_TOKEN | head -c 20`
+2. Test basic query: `hass-cli state get sensor.example`
+3. Check output format: `hass-cli -o json state get sensor.example`
+4. Only consider curl if hass-cli is genuinely broken
+
+---
+
+## Mistake 8: Stuck in Restart Verification Loop
 
 **Symptom:** After restart, keep retrying failed HTTP checks while ignoring direct evidence
 
@@ -174,6 +241,7 @@ curl $HASS_SERVER/api/  # And again...
 | Service call errors | Test in Developer Tools first |
 | Wrong reload/restart | Check decision tree in safety docs |
 | SSH grep filtering | Use `ssh -oVisualHostKey=no` |
+| Using curl instead of hass-cli | Use `hass-cli state/service call` for all HA API |
 | Restart verification loops | Trust `docker ps`, pivot to hass-cli |
 
 ---

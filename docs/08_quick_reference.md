@@ -4,7 +4,25 @@
 
 ---
 
-## SSH Pattern Note
+## 🚨 CRITICAL Pattern Notes
+
+### 1. Use hass-cli, NEVER curl
+
+**All Home Assistant API interactions MUST use hass-cli.**
+
+```bash
+# ✅ CORRECT - Simple, clear
+hass-cli state get sensor.example
+hass-cli service call automation.reload
+
+# ❌ WRONG - Overly complex, don't use
+curl -H "Authorization: Bearer $HASS_TOKEN" http://$HASS_SERVER/api/states/sensor.example
+curl -X POST -H "Authorization: Bearer $HASS_TOKEN" http://$HASS_SERVER/api/services/automation/reload
+```
+
+**See `docs/07_remote_access.md` for complete curl → hass-cli translation guide.**
+
+### 2. SSH Clean Output
 
 **All SSH commands should use `-oVisualHostKey=no` for clean output.**
 
