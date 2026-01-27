@@ -3007,4 +3007,44 @@ ssh ha "cd /homeassistant && git diff <file>"
 
 ---
 
+### Mistake 6: Stuck in Restart Verification Loop
+**Symptom**: After restart, keep retrying failed HTTP checks while ignoring direct evidence
+
+**What happened:**
+1. Sent restart command successfully
+2. Checked with `curl $HASS_SERVER/api/` → got HTTP 000 (connection refused)
+3. Kept retrying the same curl command multiple times
+4. User had to inform that server was back
+5. SSH `docker ps` showed container was "Up 7 minutes" the whole time
+
+**Root cause**: Trusted indirect HTTP check over direct container status evidence
+
+**Correct procedure:**
+```bash
+# ✅ RIGHT: Trust direct evidence, pivot to verify fix
+ssh ha "docker ps --filter name=homeassistant"
+# If shows "Up X minutes", server IS running - move on
+
+# Then verify the actual change took effect
+source .env && hass-cli state get binary_sensor.example
+```
+
+**What NOT to do:**
+```bash
+# ❌ WRONG: Loop retrying failing HTTP checks
+curl $HASS_SERVER/api/  # Fails with HTTP 000
+curl $HASS_SERVER/api/  # Try again... why?
+curl $HASS_SERVER/api/  # And again...
+```
+
+**Prevention**:
+- Trust `docker ps` output - if container is "Up X minutes", HA is running
+- Don't troubleshoot curl failures - goal is to verify the fix, not debug curl
+- Move on to verify the actual change using hass-cli or other reliable methods
+- If curl fails, try alternative verification methods (hass-cli, SSH commands)
+
+**Key principle**: Direct evidence (`docker ps`) > Indirect HTTP checks. When one diagnostic fails, pivot to another approach rather than retrying the same failing command.
+
+---
+
 This skill encapsulates efficient Home Assistant management workflows developed through iterative optimization and real-world dashboard development. Apply these patterns to any Home Assistant instance for reliable, fast, and safe configuration management.
