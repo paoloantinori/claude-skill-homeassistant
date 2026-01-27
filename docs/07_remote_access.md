@@ -149,33 +149,63 @@ curl -s -H "Authorization: Bearer $HASS_TOKEN" \
 
 ## SSH Access Patterns
 
+### Clean SSH Output (No Visual Host Key)
+
+**Use `-oVisualHostKey=no` to suppress the visual fingerprint display.**
+
+```bash
+# ✅ CORRECT - Clean output without grep filtering
+ssh -oVisualHostKey=no ha "ha core logs | tail -50"
+
+# ❌ INEFFICIENT - Uses grep to filter fingerprint
+ssh ha "ha core logs | tail -50" 2>/dev/null | grep -v "Host key\|ED25519\|+--\||\|--\|SHA256"
+```
+
+**Why this matters:**
+- `-oVisualHostKey=no` disables the fingerprint at the source
+- No need for post-processing with `grep`
+- More efficient and cleaner command structure
+- Works with any SSH command (logs, git, docker, etc.)
+
+**Best Practice:** Configure this permanently in `~/.ssh/config`:
+
+```bash
+# ~/.ssh/config
+Host ha
+    HostName homeassistant.local
+    User root
+    VisualHostKey no
+```
+
+Then `ssh ha` never shows the fingerprint.
+
 ### Quick Commands
 
 ```bash
-# Check logs
-ssh ha "ha core logs | tail -50"
+# Check logs (clean output)
+ssh -oVisualHostKey=no ha "ha core logs | tail -50"
 
 # Validate configuration
-ssh ha "ha core check"
+ssh -oVisualHostKey=no ha "ha core check"
 
 # Restart (ASK FIRST!)
-ssh ha "ha core restart"
+ssh -oVisualHostKey=no ha "ha core restart"
 
 # Check git status
-ssh ha "cd /homeassistant && git status"
+ssh -oVisualHostKey=no ha "cd /homeassistant && git status"
 
 # Pull changes
-ssh ha "cd /homeassistant && git pull"
+ssh -oVisualHostKey=no ha "cd /homeassistant && git pull"
 ```
 
 ### Docker Commands
 
 ```bash
 # Check container status
-ssh ha "docker ps --filter name=homeassistant"
+ssh -oVisualHostKey=no ha "docker ps --filter name=homeassistant"
 
 # View container logs
-ssh ha "docker logs homeassistant"
+ssh -oVisualHostKey=no ha "docker logs homeassistant"
 ```
 
 ---

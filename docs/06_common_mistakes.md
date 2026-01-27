@@ -86,7 +86,44 @@ ssh ha "cd /homeassistant && git diff <file>"
 
 ---
 
-## Mistake 6: Stuck in Restart Verification Loop
+## Mistake 6: Filtering SSH Output with grep
+
+**Symptom:** Commands cluttered with visual fingerprint ASCII art
+
+**What happened:**
+- SSH displays visual host key fingerprint on every connection
+- Added `grep -v "Host key\|ED25519\|+--\||\|--\|SHA256"` to filter it out
+- Inefficient and makes commands harder to read
+
+**❌ WRONG:**
+```bash
+ssh ha "ha core logs | tail -50" 2>/dev/null | grep -v "Host key\|ED25519\|+--\||\|--\|SHA256"
+```
+
+**✅ CORRECT:**
+```bash
+ssh -oVisualHostKey=no ha "ha core logs | tail -50"
+```
+
+**Best Practice:** Configure permanently in `~/.ssh/config`:
+
+```bash
+Host ha
+    HostName homeassistant.local
+    User root
+    VisualHostKey no
+```
+
+Then `ssh ha` never shows fingerprint, no grep needed.
+
+**Prevention:**
+- Use `-oVisualHostKey=no` for all SSH commands in automations/scripts
+- Add `VisualHostKey no` to SSH config for manual commands
+- Never use grep to filter SSH output
+
+---
+
+## Mistake 7: Stuck in Restart Verification Loop
 
 **Symptom:** After restart, keep retrying failed HTTP checks while ignoring direct evidence
 
@@ -136,6 +173,7 @@ curl $HASS_SERVER/api/  # And again...
 | Wrong paths | Use `ha:` alias, verify paths |
 | Service call errors | Test in Developer Tools first |
 | Wrong reload/restart | Check decision tree in safety docs |
+| SSH grep filtering | Use `ssh -oVisualHostKey=no` |
 | Restart verification loops | Trust `docker ps`, pivot to hass-cli |
 
 ---

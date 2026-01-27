@@ -84,11 +84,11 @@ source .env
 # Edit files...
 
 # 3. Validate
-ssh ha "ha core check"
+ssh -oVisualHostKey=no ha "ha core check"
 
 # 4. Deploy
 scp file.yaml ha:/homeassistant/
-# OR: git push && ssh ha "cd /homeassistant && git pull"
+# OR: git push && ssh -oVisualHostKey=no ha "cd /homeassistant && git pull"
 
 # 5. Reload
 hass-cli service call automation.reload
