@@ -332,7 +332,7 @@ ssh -oVisualHostKey=no ha "ha core restart"
 # Check git status
 ssh -oVisualHostKey=no ha "cd /homeassistant && git status"
 
-# Pull changes
+# Pull changes (if clean)
 ssh -oVisualHostKey=no ha "cd /homeassistant && git pull"
 ```
 

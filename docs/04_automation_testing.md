@@ -12,7 +12,7 @@
 
 ```bash
 git add automations.yaml && git commit -m "..." && git push
-ssh ha "cd /homeassistant && git pull"
+ssh ha "cd /homeassistant && git status && git pull"
 ```
 
 ### Step 2: Check Configuration

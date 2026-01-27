@@ -220,10 +220,9 @@ Are you still testing the change?
 | Task | Command |
 |------|---------|
 | Deploy via SCP | `scp file.yaml ha:/homeassistant/` |
-| **Check status BEFORE pull** | `ssh ha "cd /homeassistant && git status"` |
+| **Deploy via Git** | `ssh ha "cd /homeassistant && git status"` → (if clean) → `git pull` |
 | View diffs | `ssh ha "cd /homeassistant && git diff file.yaml"` |
 | Revert scp'd file | `ssh ha "cd /homeassistant && git checkout -- file.yaml"` |
-| Pull from git | `ssh ha "cd /homeassistant && git pull"` |
 | Reload automations | `hass-cli service call automation.reload` |
 
 **⚠️ CRITICAL:** Always `git status` → `git diff` → `git checkout` → `git pull`

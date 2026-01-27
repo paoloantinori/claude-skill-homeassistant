@@ -17,7 +17,7 @@
 ssh ha "ha core check"
 # 3. Only if valid, deploy
 scp file.yaml ha:/homeassistant/
-# OR: git push && ssh ha "cd /homeassistant && git pull"
+# OR: git push && ssh ha "cd /homeassistant && git status && git pull"
 # 4. Reload/restart as needed
 # 5. Verify behavior
 

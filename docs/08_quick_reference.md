@@ -67,7 +67,7 @@ hass-cli service call automation.trigger --arguments entity_id=automation.name  
 ```bash
 # Git workflow
 git add . && git commit -m "..." && git push
-ssh -oVisualHostKey=no ha "cd /homeassistant && git pull"
+ssh -oVisualHostKey=no ha "cd /homeassistant && git status && git pull"
 
 # SCP workflow (testing)
 scp file.yaml ha:/homeassistant/
@@ -99,7 +99,7 @@ ssh -oVisualHostKey=no ha "ha core logs | grep -i 'automation' | tail -10"
 | Check entity state | `hass-cli state get entity.name` |
 | View logs | `ssh -oVisualHostKey=no ha "ha core logs \| tail -50"` |
 | Deploy via SCP | `scp file.yaml ha:/homeassistant/` |
-| Deploy via Git | `ssh -oVisualHostKey=no ha "cd /homeassistant && git pull"` |
+| Deploy via Git | `ssh -oVisualHostKey=no ha "cd /homeassistant && git status && git pull"` |
 | Restart HA | `ssh -oVisualHostKey=no ha "ha core restart"` (ASK FIRST!) |
 
 ---

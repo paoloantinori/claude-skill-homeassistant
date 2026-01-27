@@ -175,7 +175,7 @@ See **[docs/06_common_mistakes.md](docs/06_common_mistakes.md)** for patterns.
 | View logs | `ssh ha "ha core logs \| tail -50"` |
 | Find logger in config | `grep -n "logger:" -A 50 configuration.yaml \| grep pattern` |
 | Deploy via SCP | `scp file.yaml ha:/homeassistant/` |
-| Deploy via Git | `ssh ha "cd /homeassistant && git pull"` |
+| Deploy via Git | `ssh ha "cd /homeassistant && git status"` → (if clean) → `git pull` |
 
 ## 🚨 Most Critical Rules
 
