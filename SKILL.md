@@ -37,6 +37,11 @@ triggers:
     - "reload template"
     - "pyscript"
     - "hass-cli"
+    - "logger"
+    - "log level"
+    - "logging"
+    - "reduce logs"
+    - "debug logs"
 ---
 
 # Home Assistant Manager
@@ -80,6 +85,7 @@ Expert-level Home Assistant configuration management with efficient workflows, r
 | **Common Mistakes** | [06_common_mistakes.md](docs/06_common_mistakes.md) | When encountering errors |
 | **Remote Access** | [07_remote_access.md](docs/07_remote_access.md) | For hass-cli/SSH patterns |
 | **Quick Reference** | [08_quick_reference.md](docs/08_quick_reference.md) | Command cheat sheet |
+| **Logger Configuration** | [09_logger_configuration.md](docs/09_logger_configuration.md) | When adjusting log levels |
 
 ## Quick Start
 
@@ -167,6 +173,7 @@ See **[docs/06_common_mistakes.md](docs/06_common_mistakes.md)** for patterns.
 | List states | `hass-cli state list` |
 | Trigger automation | `hass-cli service call automation.trigger --arguments entity_id=automation.name` |
 | View logs | `ssh ha "ha core logs \| tail -50"` |
+| Find logger in config | `grep -n "logger:" -A 50 configuration.yaml \| grep pattern` |
 | Deploy via SCP | `scp file.yaml ha:/homeassistant/` |
 | Deploy via Git | `ssh ha "cd /homeassistant && git pull"` |
 
