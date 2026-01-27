@@ -28,18 +28,31 @@ git add file.yaml
 git commit -m "Description"
 git push
 
-# 4. CRITICAL: Pull to HA instance
+# 4. 🔍 CRITICAL: BEFORE pull, check for external modifications
+ssh ha "cd /homeassistant && git status"
+# If "working tree clean", skip to step 6
+# If "uncommitted local changes", CONTINUE to step 5
+
+# 5. 🔍 INSPECT changes before discarding
+ssh ha "cd /homeassistant && git diff <file>"
+# Analyze: Are these MY changes (safe) or EXTERNAL modifications (ASK USER)?
+# Only if safe: checkout then pull
+ssh ha "cd /homeassistant && git checkout -- <file> && git pull"
+
+# 6. Pull (clean state)
 ssh ha "cd /homeassistant && git pull"
 
-# 5. Reload or restart
+# 7. Reload or restart
 hass-cli service call automation.reload  # if reload sufficient
 # OR
 ssh ha "ha core restart"  # if restart needed (ASK FIRST!)
 
-# 6. Verify
+# 8. Verify
 hass-cli state get sensor.new_entity
 ssh ha "ha core logs | grep -i error | tail -20"
 ```
+
+**⚠️ CRITICAL SAFETY:** Always `git diff` before `git checkout` to avoid losing external modifications.
 
 ---
 
@@ -143,22 +156,27 @@ git add automations.yaml
 git commit -m "Tested automation changes"
 git push
 
-# 2. 🔍 CRITICAL: INSPECT before discarding
+# 2. 🔍 CHECK server status first
+ssh ha "cd /homeassistant && git status"
+# If "working tree clean", skip to step 6
+# If "uncommitted local changes", CONTINUE to step 3
+
+# 3. 🔍 CRITICAL: INSPECT before discarding
 # Check what's actually in the file on the server
 ssh ha "cd /homeassistant && git diff automations.yaml"
 
-# 3. ANALYZE the diff:
+# 4. ANALYZE the diff:
 #    - Only shows your SCP changes from this session? → Safe to continue
 #    - Shows UNKNOWN/EXTERNAL modifications? → STOP, investigate first
 #    - Shows mixed changes? → Manual merge needed, ask user
 
-# 4. Only if diff shows ONLY your SCP changes, then checkout:
+# 5. Only if diff shows ONLY your SCP changes, then checkout:
 ssh ha "cd /homeassistant && git checkout -- automations.yaml"
 
-# 5. Now pull (clean state)
+# 6. Now pull (clean state)
 ssh ha "cd /homeassistant && git pull"
 
-# 6. Reload if needed
+# 7. Reload if needed
 hass-cli service call automation.reload
 ```
 
@@ -185,11 +203,14 @@ Are you still testing the change?
 └─ NO (change is finalized)
    ├─ First time deploying?
    │  └─ YES → Use Git workflow
-   │           - commit → push → pull → reload
+   │           - commit → push → status → (diff?) → checkout → pull → reload
    │
    └─ Already tested via SCP?
       └─ YES → Use SCP + Git Pull workflow
-                - commit → push → checkout → pull → reload
+                - commit → push → status → diff → checkout → pull → reload
+```
+
+**⚠️ ALWAYS:** `git status` before `git pull` on HA server
 ```
 
 ---
@@ -199,11 +220,13 @@ Are you still testing the change?
 | Task | Command |
 |------|---------|
 | Deploy via SCP | `scp file.yaml ha:/homeassistant/` |
-| Pull from git | `ssh ha "cd /homeassistant && git pull"` |
-| Revert scp'd file | `ssh ha "cd /homeassistant && git checkout -- file.yaml"` |
-| Reload automations | `hass-cli service call automation.reload` |
-| Check git status | `ssh ha "cd /homeassistant && git status"` |
+| **Check status BEFORE pull** | `ssh ha "cd /homeassistant && git status"` |
 | View diffs | `ssh ha "cd /homeassistant && git diff file.yaml"` |
+| Revert scp'd file | `ssh ha "cd /homeassistant && git checkout -- file.yaml"` |
+| Pull from git | `ssh ha "cd /homeassistant && git pull"` |
+| Reload automations | `hass-cli service call automation.reload` |
+
+**⚠️ CRITICAL:** Always `git status` → `git diff` → `git checkout` → `git pull`
 
 ---
 
