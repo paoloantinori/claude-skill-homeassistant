@@ -28,17 +28,49 @@ ssh ha "cd /homeassistant && git diff <file>"
 
 ## Mistake 2: SCP Then Git Pull Conflicts
 
-**Symptom:** Git pull fails due to local modifications from earlier scp deployments
+**Symptom:** Git pull fails with "Your local changes would be overwritten by merge"
 
 **What happened:**
 1. Deployed via scp for testing
 2. Later committed and pushed changes
 3. Git pull on server conflicts with scp-modified files
 
+**❌ WRONG (forgot to checkout first):**
+```bash
+# Deployed via scp earlier
+scp file.yaml ha:/homeassistant/
+
+# Later, after committing to git...
+ssh ha "cd /homeassistant && git pull"
+# Error: Your local changes to the following files would be overwritten...
+```
+
+**✅ CORRECT (checkout before pull):**
+```bash
+# Deployed via scp earlier
+scp file.yaml ha:/homeassistant/
+
+# Later, after committing to git...
+ssh ha "cd /homeassistant && git checkout -- file.yaml && git pull"
+```
+
+**One-liner pattern:**
+```bash
+# Combined checkout + pull (when you KNOW the files are safe to discard)
+ssh ha "cd /homeassistant && git checkout -- file.yaml file2.yaml && git pull"
+```
+
+**Recovery pattern (when git pull already failed):**
+```bash
+# git pull just failed with "local changes would be overwritten"
+# Recovery: checkout the conflicted files, then retry pull
+ssh ha "cd /homeassistant && git checkout -- file.yaml && git pull"
+```
+
 **Prevention:**
-- Document which files were deployed via scp
-- Checkout scp files BEFORE git pull
-- OR use scp-only for /tmp, git-only for /homeassistant
+- Document which files were deployed via scp (they need checkout before pull)
+- OR use the "SCP + Git Pull Workflow" from `docs/02_deployment.md`
+- Track: `scp deploy → commit → checkout → pull → reload`
 
 ---
 

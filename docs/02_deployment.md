@@ -207,6 +207,35 @@ Are you still testing the change?
 
 ---
 
+## 🚨 FAILURE RECOVERY: Git Pull Conflicts
+
+**When `git pull` fails with "local changes would be overwritten":**
+
+```bash
+# ❌ WRONG: Pull fails, you're stuck
+ssh ha "cd /homeassistant && git pull"
+# Error: Your local changes to the following files would be overwritten...
+
+# ✅ CORRECT: Recovery pattern
+# Step 1: Check what's modified
+ssh ha "cd /homeassistant && git status"
+
+# Step 2: Inspect the changes (are they YOUR scp changes?)
+ssh ha "cd /homeassistant && git diff <file>"
+
+# Step 3: If safe, checkout specific files, then pull
+ssh ha "cd /homeassistant && git checkout -- <files> && git pull"
+```
+
+**Key pattern:** `git pull` → fails → `git checkout -- <files>` → `git pull` (succeeds)
+
+**One-liner for known scp files:**
+```bash
+ssh ha "cd /homeassistant && git checkout -- file.yaml && git pull"
+```
+
+---
+
 ## Common Pitfalls
 
 | Mistake | Consequence | Solution |
