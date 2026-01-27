@@ -263,6 +263,51 @@ curl $HASS_SERVER/api/  # And again...
 
 ---
 
+## Mistake 9: Forgetting to Source .env Before hass-cli
+
+**Symptom:** `401 Unauthorized` error from hass-cli
+
+**What happened:**
+- Ran `hass-cli` command without sourcing `.env` first
+- HASS_TOKEN environment variable not set
+- hass-cli cannot authenticate to Home Assistant
+
+**❌ WRONG:**
+```bash
+# Forgot to source .env
+hass-cli state get sensor.example
+# Error: HomeAssistantCliError: Error calling service: 401 - 401: Unauthorized
+```
+
+**✅ CORRECT:**
+```bash
+# Source .env first
+source .env && hass-cli state get sensor.example
+```
+
+**Or source once, then multiple commands:**
+```bash
+source .env
+hass-cli state get sensor.example
+hass-cli service call automation.reload
+```
+
+**Prevention:**
+- Make `source .env` the first step in any hass-cli workflow
+- Check if env is loaded: `echo $HASS_TOKEN | head -c 20` (should show token start)
+- All examples in skill docs show `source .env && hass-cli` pattern
+
+**Troubleshooting:**
+```bash
+# Verify .env is sourced
+echo $HASS_TOKEN | head -c 20
+
+# If empty, source it
+source /home/pantinor/data/repo/personal/hassio/.env
+```
+
+---
+
 ## Quick Reference: Common Pitfalls
 
 | Mistake | Prevention |
@@ -275,6 +320,7 @@ curl $HASS_SERVER/api/  # And again...
 | SSH grep filtering | Use `ssh -oVisualHostKey=no` |
 | Using curl instead of hass-cli | Use `hass-cli state/service call` for all HA API |
 | Restart verification loops | Trust `docker ps`, pivot to hass-cli |
+| hass-cli 401 errors | Always `source .env` before hass-cli commands |
 
 ---
 
