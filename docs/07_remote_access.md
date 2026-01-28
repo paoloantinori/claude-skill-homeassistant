@@ -12,6 +12,16 @@
 1. hass-cli is genuinely broken OR
 2. You need an API endpoint that hass-cli cannot access
 
+**🚨 CRITICAL: When a command fails, ALWAYS use --help FIRST:**
+```bash
+hass-cli [subcommand] --help
+```
+
+**NEVER immediately switch to curl when a command fails.** Use --help to:
+- Verify the correct syntax
+- Check if the option/feature exists
+- Find the correct alternative approach
+
 ### Why This Rule?
 
 | Aspect | hass-cli | curl |
@@ -81,6 +91,45 @@
 
 **If hass-cli "doesn't work", FIX IT. Do NOT switch to curl.**
 
+## 🚨 MANDATORY: Use --help BEFORE Trying Alternatives
+
+**When a command fails, you MUST follow this sequence:**
+
+```bash
+# Step 1: ALWAYS check help first
+hass-cli [subcommand] --help
+
+# Step 2: Verify the exact syntax from help
+# Step 3: Try the corrected command
+# Step 4: ONLY if help confirms feature doesn't exist, consider alternatives
+```
+
+**Examples:**
+
+```bash
+# ❌ WRONG: Immediately try curl when command fails
+hass-cli state get --attributes
+# Error: No such option
+# → Immediately tries curl instead (WRONG!)
+
+# ✅ CORRECT: Check help, learn correct syntax
+hass-cli state get --help
+# Output shows: Usage: hass-cli state get [OPTIONS] ENTITY
+# → No --attributes option exists
+# → Try: hass-cli -o yaml state get sensor.example (includes attributes)
+```
+
+### Decision Flow: When to Use --help
+
+```
+Command fails?
+├─ Yes → Run: hass-cli [subcommand] --help
+│         ├─ Syntax error? → Fix syntax based on help output
+│         ├─ Missing option? → Check if option exists, find correct alternative
+│         └─ Feature doesn't exist? → Then consider hass-cli raw or curl
+└─ No → Success!
+```
+
 ### Step 1: Verify Environment
 
 ```bash
@@ -91,7 +140,16 @@ echo $HASS_TOKEN | head -c 20
 source /home/pantinor/data/repo/personal/hassio/.env
 ```
 
-### Step 2: Test Basic Connectivity
+### Step 2: Check Help for Correct Syntax
+
+```bash
+# ALWAYS verify syntax with --help before trying alternatives
+hass-cli state --help       # Check state subcommand options
+hass-cli service --help     # Check service subcommand options
+hass-cli --help             # Check global options
+```
+
+### Step 3: Test Basic Connectivity
 
 ```bash
 # Simple state query
@@ -101,10 +159,10 @@ hass-cli state get sensor.example
 # Check: network, HA server status, credentials
 ```
 
-### Step 3: Check Output Format Issues
+### Step 4: Check Output Format Issues
 
 ```bash
-# Want JSON? Use -o flag
+# Want JSON? Use -o flag (GLOBAL option, comes FIRST)
 hass-cli -o json state get sensor.example
 
 # Want YAML with attributes? Use -o yaml
@@ -114,7 +172,7 @@ hass-cli -o yaml state get sensor.example
 hass-cli raw get /api/states/sensor.example
 ```
 
-### Step 4: Last Resort - Only Then Consider curl
+### Step 5: Last Resort - Only Then Consider curl
 
 **Valid reasons to use curl:**
 - hass-cli has a confirmed bug blocking your use case
@@ -223,6 +281,32 @@ hass-cli --timeout 30 service call automation.reload
 ---
 
 ## 🚨 Common hass-cli Mistakes
+
+### Mistake 0: Not Using --help Before Trying Alternatives
+
+**❌ WRONG:**
+```bash
+hass-cli state get sensor.example --some-flag
+# Error: No such option: --some-flag
+
+# Immediately tries curl instead (WRONG!)
+curl -H "Authorization: Bearer $HASS_TOKEN" $HASS_SERVER/api/states/sensor.example
+```
+
+**✅ CORRECT:**
+```bash
+# Step 1: Check help to verify correct syntax
+hass-cli state get --help
+# Output shows available options (none for --some-flag)
+
+# Step 2: Find correct alternative from help or global options
+hass-cli --output json state get sensor.example
+
+# Step 3: Only if help confirms feature doesn't exist, consider raw/curl
+hass-cli raw get /api/states/sensor.example
+```
+
+**🚨 RULE: Whenever you get an error, run `--help` BEFORE trying any alternative.**
 
 ### Mistake 1: Non-Existent `automation` Subcommand
 
@@ -352,6 +436,7 @@ ssh -oVisualHostKey=no ha "docker logs homeassistant"
 
 | Task | Command |
 |------|---------|
+| **🚨 Check syntax FIRST** | `hass-cli [subcommand] --help` |
 | Get entity state | `hass-cli state get entity.name` |
 | Get with attributes | `hass-cli -o yaml state get entity.name` |
 | List all states | `hass-cli state list` |
@@ -359,5 +444,5 @@ ssh -oVisualHostKey=no ha "docker logs homeassistant"
 | Reload automations | `hass-cli service call automation.reload` |
 | Trigger automation | `hass-cli service call automation.trigger --arguments entity_id=automation.name` |
 | Test template | `curl -H "Authorization: Bearer $HASS_TOKEN" -d '{"template": "..."}' http://$HASS_SERVER/api/template` |
-| SSH logs | `ssh ha "ha core logs \| tail -50"` |
-| Validate config | `ssh ha "ha core check"` |
+| SSH logs | `ssh -oVisualHostKey=no ha "ha core logs \| tail -50"` |
+| Validate config | `ssh -oVisualHostKey=no ha "ha core check"` |
