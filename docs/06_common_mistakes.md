@@ -308,6 +308,126 @@ source /home/pantinor/data/repo/personal/hassio/.env
 
 ---
 
+## Mistake 9: Using `state_attr()` for `last_updated` in Templates
+
+**Symptom:** Staleness checks always return `True` or `999`, template evaluates entity as stale even when fresh
+
+**❌ WRONG:**
+```yaml
+# In template sensors
+{% set last_upd = state_attr('device_tracker.phone', 'last_updated') %}
+{% set stale = (now() - last_upd).total_seconds() > 300 if last_upd else true %}
+# Problem: last_upd is always None! state_attr() can't access core entity properties
+```
+
+**✅ CORRECT:**
+```yaml
+# Use states.xxx.last_updated instead
+{% set last_upd = states.device_tracker.phone.last_updated %}
+{% set stale = (now() - last_upd).total_seconds() > 300 if last_upd else true %}
+```
+
+**Why:** `last_updated`, `last_changed`, `last_reported` are core entity properties, not attributes. Access via `states.entity.property` not `state_attr('entity', 'property')`.
+
+**Prevention:**
+- Test template evaluation: `curl -X POST -H "Authorization: Bearer $TOKEN" $HASS/api/template -d '{"template": "{% set x = states.xxx.last_updated %}{{ x }}"}'`
+- If `last_upd` prints `None`, switch to `states.xxx.last_updated`
+
+---
+
+## Mistake 10: Using `state_attr()` in Telegram Message Templates
+
+**Symptom:** YAML parsing error: "can't find end of the entity starting at byte offset X"
+
+**❌ WRONG:**
+```yaml
+- action: telegram_bot.send_message
+  data:
+    target:
+      - !secret telegram_chat_id
+    message: |
+      GPS Updated: {{ state_attr('device_tracker.phone', 'last_updated') }}
+# Problem: Nested quotes in template break YAML parsing
+```
+
+**✅ CORRECT:**
+```yaml
+# Option 1: Remove complex expressions from messages
+- action: telegram_bot.send_message
+  data:
+    target:
+      - !secret telegram_chat_id
+    message: |
+      GPS Updated: Check logs for details
+
+# Option 2: Calculate in variable, use simple reference
+- action: system_log.write
+  data:
+    message: "GPS: {{ state_attr(...) }}"
+- action: telegram_bot.send_message
+  data:
+    target:
+      - !secret telegram_chat_id
+    message: |
+      GPS status updated
+```
+
+**Prevention:**
+- Keep telegram message templates simple
+- Use `system_log.write` for complex debug output
+- Avoid nested quotes in YAML multi-line strings
+
+---
+
+## Mistake 11: Forgetting to Check Logs After Deployment
+
+**Symptom:** Automation/script errors silently fail, user notices before you do
+
+**❌ WRONG:**
+```bash
+# Deploy and reload, move on immediately
+scp file.yaml ha:/homeassistant/
+hass-cli service call automation.reload
+# (immediately starts next task without checking logs)
+# Error in logs: "Failed to generate automation"
+# User reports broken automation hours later
+```
+
+**✅ CORRECT:**
+```bash
+# Deploy
+scp file.yaml ha:/homeassistant/
+
+# Reload
+hass-cli service call automation.reload
+
+# IMMEDIATELY check logs (within 30 seconds)
+ssh ha "ha core logs | tail -50" | grep -E "(ERROR|error)"
+
+# If errors found → fix immediately
+# If no errors → proceed with testing
+```
+
+**Prevention:**
+- **ALWAYS** check logs within 30 seconds after reload
+- Create pattern: `scp → reload → log check → continue`
+- Document this in your deployment checklist
+
+**Pattern to add to workflow:**
+```bash
+post_reload_check() {
+  ssh ha "ha core logs | tail -50" | grep -E "(ERROR|error)" | tail -10
+}
+
+# Usage
+scp file.yaml ha:/homeassistant/ && \
+hass-cli service call automation.reload && \
+sleep 2 && \
+post_reload_check
+```
+
+---
+
 ## Quick Reference: Common Pitfalls
 
 | Mistake | Prevention |
@@ -321,6 +441,31 @@ source /home/pantinor/data/repo/personal/hassio/.env
 | Using curl instead of hass-cli | Use `hass-cli state/service call` for all HA API |
 | Restart verification loops | Trust `docker ps`, pivot to hass-cli |
 | hass-cli 401 errors | Always `source .env` before hass-cli commands |
+| `state_attr()` for `last_updated` | Use `states.xxx.last_updated` in templates |
+| `state_attr()` in messages | Keep telegram messages simple, avoid nested quotes |
+| Skipping post-deploy log check | **ALWAYS** check logs within 30s after reload |
+
+---
+
+## Force-Refresh Entity Pattern
+
+**When to use:** Device tracker not updating, need to trigger immediate location refresh
+
+```bash
+# Force entity to update from its source
+hass-cli service call homeassistant.update_entity --arguments entity_id=device_tracker.phone_name
+
+# Then verify the update
+hass-cli state get device_tracker.phone_name
+```
+
+**Use cases:**
+- Testing staleness detection logic
+- Forcing GPS update after airplane mode
+- Triggering sensor refresh that appears stuck
+- Debugging entity update behavior
+
+**Note:** This requests an update from the integration. If the source (phone/app) doesn't respond, the entity won't update.
 
 ---
 

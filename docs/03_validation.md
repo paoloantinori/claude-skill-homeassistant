@@ -93,6 +93,52 @@ Before deploying any changes:
 - [ ] Plan reload vs restart (see docs/01_critical_safety.md)
 - [ ] Have rollback plan (git revert or previous file version)
 
+## 🚨 MANDATORY: Post-Deployment Log Check
+
+**CRITICAL RULE:** Always check logs IMMEDIATELY after deployment/reload to catch errors.
+
+```bash
+# Deploy
+scp file.yaml ha:/homeassistant/path/
+
+# Reload
+hass-cli service call automation.reload
+
+# IMMEDIATELY check logs (within 30 seconds)
+ssh ha "ha core logs | tail -50" | grep -E "(ERROR|error)" | tail -20
+```
+
+### Why This Matters
+
+| Issue | Without Log Check | With Log Check |
+|-------|------------------|----------------|
+| YAML parsing error | Automation silently fails | Caught immediately, fixed |
+| Template syntax error | Entity not updating | Detected and corrected |
+| Service call error | Action fails silently | Fixed before user notices |
+| Blueprint missing input | Blueprint automation broken | Addressed proactively |
+
+### When to Check Logs
+
+- ✅ **Always** after `automation.reload`
+- ✅ **Always** after `template.reload`
+- ✅ **Always** after `script.reload`
+- ✅ **Always** after `homeassistant.reload_core_config`
+- ✅ **Always** after SCP deployment
+- ⚠️ After git pull (if automation changes included)
+
+### Log Check Patterns
+
+```bash
+# Quick error check (last 50 lines, errors only)
+ssh ha "ha core logs | tail -50" | grep -E "(ERROR|error)"
+
+# Check specific time range (after reload at 23:22)
+ssh ha "ha core logs | tail -100" | grep "23:2[2-9]" | grep -E "(ERROR|error)"
+
+# Filter by automation name
+ssh ha "ha core logs | tail -100" | grep "staleness_latch"
+```
+
 ---
 
 ## Common Validation Errors
