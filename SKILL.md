@@ -200,6 +200,82 @@ See **[docs/06_common_mistakes.md](docs/06_common_mistakes.md)** for patterns.
 
 This skill delegates specialized tasks to subagents for efficiency and expertise.
 
+### 🚨 MANDATORY: Subagent Decision Matrix
+
+**BEFORE starting ANY Home Assistant task, consult this matrix:**
+
+| Task Type | → Delegate To | Trigger Words |
+|-----------|---------------|---------------|
+| **Log analysis** | `ha-log-analyzer` | "check logs", "analyze logs", "errors", "debug", "what happened" |
+| **Automation logic verification** | `automation-verifier` | "test automation", "verify logic", "did it fire?", "automation not working" |
+| **Config validation** | `config-validator` | "validate", "check syntax", "will this work?" |
+| **Deployment to HA server** | `deployment-orchestrator` | "deploy", "scp", "git push", "reload" |
+| **Lovelace/dashboard** | `lovelace-dashboard-tester` | "dashboard", "lovelace", "UI", "card" |
+| **Service call testing** | `service-call-tester` | "test service call", "call service", "trigger" |
+
+### 🚨 MANDATORY: Subagent Delegation Flow
+
+**For ANY Home Assistant task:**
+
+```
+1. Task identified
+   ↓
+2. Consult Decision Matrix above
+   ↓
+3. Is there a matching subagent?
+   ↓
+   YES → 4. DELEGATE to subagent (use Task tool)
+   ↓
+   NO  → 5. Proceed with direct implementation
+```
+
+**Examples:**
+
+✅ **CORRECT:**
+```
+User: "Check why I'm marked away when I'm home"
+↓
+Matrix matches → Log analysis → ha-log-analyzer
+↓
+DELEGATE to ha-log-analyzer
+```
+
+✅ **CORRECT:**
+```
+User: "Test if my automation works"
+↓
+Matrix matches → Automation verification → automation-verifier
+↓
+DELEGATE to automation-verifier
+```
+
+❌ **WRONG:**
+```
+User: "Deploy my automation changes"
+↓
+Directly runs: scp automations.yaml ha:/homeassistant/
+↓
+MISSED: Should use deployment-orchestrator
+```
+
+### 🚨 CRITICAL RULE: Always Delegate When Match Exists
+
+**If the task matches a subagent in the matrix:**
+1. ✅ **MUST DELEGATE** - Use Task tool with appropriate subagent
+2. ❌ **NEVER skip delegation** for "quick" tasks
+3. ❌ **NEVER implement directly** when subagent exists
+
+**Exception:** Only skip delegation if user explicitly says "do it directly" or "no subagent".
+
+**Examples of REQUIRED delegation:**
+
+| User Request | Correct Action | Wrong Action |
+|--------------|----------------|--------------|
+| "Check logs for errors" | Delegate to `ha-log-analyzer` | Run `grep` directly ❌ |
+| "Test automation X" | Delegate to `automation-verifier` | Manually trigger ❌ |
+| "Deploy changes" | Delegate to `deployment-orchestrator` | Run `scp` directly ❌ |
+| "Validate config" | Delegate to `config-validator` | Run `ha core check` directly ❌ |
+
 ### HA Log Analyzer
 
 **Location**: `.claude/skills/home-assistant-manager/subagents/ha-log-analyzer/` (skill-embedded)
