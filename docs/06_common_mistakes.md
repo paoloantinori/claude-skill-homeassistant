@@ -499,6 +499,10 @@ hass-cli service call input_boolean.reload
 | `state_attr()` in messages | Keep telegram messages simple, avoid nested quotes |
 | Skipping post-deploy log check | **ALWAYS** check logs within 30s after reload |
 | `reload_config_entry` for YAML entities | Use `<domain>.reload` (e.g., `input_boolean.reload`) |
+| **Jumping to alt tools on failure** | **Run `command --help` FIRST after any usage error** |
+| `hass-cli state get` multiple entities | Use `state list \| grep` or loop for multiple entities |
+| `tail -f` without timeout | **ALWAYS** wrap with `timeout X` |
+| Assuming output format | Check actual output before parsing |
 
 ---
 
@@ -524,13 +528,162 @@ hass-cli state get device_tracker.phone_name
 
 ---
 
+## Mistake 13: Not Using --help When Commands Fail
+
+**Symptom:** Jumping to alternative tools/approaches after first failure, wasting multiple attempts
+
+**What happened:**
+- Command failed with usage error
+- Instead of running `command --help` to understand correct usage
+- Immediately switched to curl, python parsing, or other complex workarounds
+- Made 3-5 additional failed attempts before finding a solution
+
+**❌ WRONG:**
+```bash
+$ hass-cli state get entity1 entity2 entity3
+Error: Got unexpected extra arguments
+
+# Immediately tries complex python JSON parsing
+$ hass-cli -o json state get entity1 | python3 -c "..."
+# Fails again, tries different parsing...
+# 4 more failed attempts
+```
+
+**✅ CORRECT:**
+```bash
+$ hass-cli state get entity1 entity2 entity3
+Error: Got unexpected extra arguments
+
+# FIRST: Check help to understand usage
+$ hass-cli state get --help
+# Learns: only accepts ONE entity
+
+# THEN: Use correct approach
+$ hass-cli state get entity1
+$ hass-cli state get entity2
+```
+
+**Prevention:**
+- **MANDATORY**: Run `command --help` after ANY usage error
+- Read the error message carefully before trying alternatives
+- Understand WHY it failed before attempting fixes
+- Only switch tools if help confirms the tool can't do what you need
+
+---
+
+## Mistake 14: hass-cli state get Only Accepts One Entity
+
+**Symptom:** `Error: Got unexpected extra arguments`
+
+**What happened:**
+- Tried to get multiple entity states in one command
+- hass-cli state get only accepts ONE entity at a time
+
+**❌ WRONG:**
+```bash
+hass-cli state get entity1 entity2 entity3
+# Error: Got unexpected extra arguments
+```
+
+**✅ CORRECT:**
+```bash
+# Option 1: Multiple separate calls
+hass-cli state get entity1
+hass-cli state get entity2
+
+# Option 2: Use state list with grep for multiple entities
+hass-cli state list | grep -E "(entity1|entity2|entity3)"
+
+# Option 3: Loop in bash
+for e in entity1 entity2 entity3; do
+  echo "=== $e ===" && hass-cli state get $e
+done
+```
+
+**Prevention:**
+- Remember: `state get` = ONE entity, `state list` = ALL entities
+- Use `state list | grep` pattern for checking multiple specific entities
+
+---
+
+## Mistake 15: tail -f Without Timeout on Remote Logs
+
+**Symptom:** Command hangs indefinitely, blocks entire workflow
+
+**What happened:**
+- Used `ssh ha "tail -f logfile"` to monitor logs
+- tail -f never exits on its own
+- Session blocked waiting for manual Ctrl+C
+- No way to recover without user intervention
+
+**❌ WRONG:**
+```bash
+# Blocks forever
+ssh ha "tail -f /var/log/something"
+```
+
+**✅ CORRECT:**
+```bash
+# Use timeout to auto-exit
+ssh ha "timeout 120 tail -f /var/log/something"
+
+# Or with head limit for grep results
+ssh ha "timeout 120 tail -f logfile" 2>&1 | grep -m 10 "pattern"
+
+# For HA logs specifically
+ssh -oVisualHostKey=no ha "ha core logs 2>&1 | tail -100" | grep "pattern"
+```
+
+**Prevention:**
+- **ALWAYS** wrap `tail -f` with `timeout X` where X is max seconds
+- Use `grep -m N` to exit after N matches
+- Prefer `ha core logs | tail -N` over `tail -f` for log checking
+- Set bash tool timeout parameter for long-running commands
+
+---
+
+## Mistake 16: Assuming Command Output Format Without Checking
+
+**Symptom:** JSON parsing errors, type errors, empty results
+
+**What happened:**
+- Assumed `hass-cli -o json` returns a dict
+- Actually returns a list
+- Made multiple failed parsing attempts with wrong assumptions
+
+**❌ WRONG:**
+```bash
+# Assumes dict output
+hass-cli -o json state get entity | python3 -c "import json,sys; d=json.load(sys.stdin); print(d['state'])"
+# TypeError: list indices must be integers or slices, not str
+```
+
+**✅ CORRECT:**
+```bash
+# FIRST: Check actual output format
+hass-cli -o json state get entity
+
+# THEN: Parse correctly based on what you see
+# Or just use default tabular output which is simpler
+hass-cli state get entity
+```
+
+**Prevention:**
+- **ALWAYS** run command without parsing first to see output format
+- Don't assume JSON structure - verify it
+- Prefer simple tabular output (`hass-cli state get`) over JSON when possible
+- If JSON needed, test parsing on known output first
+
+---
+
 ## Auto-Improve Pattern
 
 **When any command fails:**
 
-1. **Analyze** the error message carefully
-2. **Try correcting** the command (not switching tools)
-3. **Document** the pattern after success
+1. **Run `--help`** to understand correct usage
+2. **Analyze** the error message carefully
+3. **Try correcting** the command (not switching tools)
+4. **Document** the pattern after success
 
 **Example:**
 ```bash
@@ -540,7 +693,11 @@ Error: Missing argument 'ENTITY'
 # ❌ WRONG: Immediately try curl
 $ curl ... | grep automation
 
-# ✅ CORRECT: Analyze → "state get needs entity" → Try correct approach
+# ✅ CORRECT: Check help first
+$ hass-cli state get --help
+# Learns: requires ENTITY argument
+
+# Then try correct approach
 $ hass-cli state list | grep automation
 # Success! Then document this pattern.
 ```
