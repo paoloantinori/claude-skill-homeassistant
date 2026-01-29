@@ -503,6 +503,7 @@ hass-cli service call input_boolean.reload
 | `hass-cli state get` multiple entities | Use `state list \| grep` or loop for multiple entities |
 | `tail -f` without timeout | **ALWAYS** wrap with `timeout X` |
 | Assuming output format | Check actual output before parsing |
+| **Failing 3+ times in a row** | **STOP after 2 failures → Add diagnostics → Then retry** |
 
 ---
 
@@ -676,6 +677,48 @@ hass-cli state get entity
 
 ---
 
+## Meta-Pattern: Stop After Two Failures
+
+**CRITICAL: If you fail twice in a row at the same task, STOP and reflect.**
+
+**What to do after 2 consecutive failures:**
+
+1. **STOP** - Do not attempt a third time blindly
+2. **Reflect** - What information am I missing?
+3. **Add diagnostics** - What logging/output would reveal the problem?
+4. **Gather evidence** - Run diagnostic commands before retrying
+5. **Then retry** - With new information, not the same approach
+
+**Examples of diagnostic questions:**
+
+| Failure Type | Diagnostic to Add |
+|--------------|-------------------|
+| Command syntax error | Run `command --help` |
+| Unexpected output | Print raw output before parsing |
+| Entity not found | List all entities with `hass-cli state list \| grep pattern` |
+| Automation not firing | Check logs: `ssh ha "ha core logs \| grep automation_name"` |
+| Template error | Test template in Developer Tools first |
+| Timing/race condition | Add timestamps to log messages |
+
+**Anti-pattern to avoid:**
+```
+Attempt 1: fails
+Attempt 2: fails (same approach)
+Attempt 3: fails (still same approach)  ← WRONG
+Attempt 4: fails...
+```
+
+**Correct pattern:**
+```
+Attempt 1: fails
+Attempt 2: fails
+STOP → Reflect → "What would help me understand this?"
+Add diagnostic: check --help, print raw output, add logging
+Attempt 3: succeeds (with new information)
+```
+
+---
+
 ## Auto-Improve Pattern
 
 **When any command fails:**
@@ -683,7 +726,8 @@ hass-cli state get entity
 1. **Run `--help`** to understand correct usage
 2. **Analyze** the error message carefully
 3. **Try correcting** the command (not switching tools)
-4. **Document** the pattern after success
+4. **If fails twice** → Apply Meta-Pattern above
+5. **Document** the pattern after success
 
 **Example:**
 ```bash
