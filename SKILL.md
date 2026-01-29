@@ -525,6 +525,103 @@ Deployment Steps:
 
 ---
 
+### Lovelace Dashboard Tester
+
+**Location**: `.claude/skills/home-assistant-manager/subagents/lovelace-dashboard-tester/` (skill-embedded)
+
+**Purpose**: Validate and test Lovelace dashboard configurations with comprehensive JSON validation, entity verification, and card configuration checks
+
+**Triggers** (auto-delegates to lovelace dashboard tester):
+- Keywords: "validate dashboard", "check dashboard", "dashboard errors", "lovelace validation", "test dashboard"
+- Context: Before deploying dashboard changes, after editing dashboards, dashboard not appearing in sidebar
+- Explicit: "Validate dashboard configuration", "Check dashboard JSON", "Test dashboard loading"
+
+**Workflows**:
+- **JSON Syntax Validation**: Validate dashboard JSON structure (20s timeout)
+  - Identify dashboards → Validate JSON → Parse structure
+  - Returns: JSON validation results with error locations
+
+- **Dashboard Registration Check**: Verify dashboards are registered (25s timeout)
+  - Read registry → List dashboard files → Cross-reference
+  - Returns: Registered/unregistered dashboards, orphaned registrations
+
+- **Entity Reference Verification**: Verify all entities exist (30s timeout)
+  - Extract entities → Fetch entity list → Verify existence
+  - Returns: Missing/unavailable entities with card locations
+
+- **Card Configuration Validation**: Validate card configurations (40s timeout)
+  - Parse cards → Validate types → Check options → Validate templates
+  - Returns: Invalid cards, missing options, template errors
+
+- **Full Dashboard Validation**: Comprehensive validation (90s timeout)
+  - JSON validation → Registration check → Entity verification → Card validation
+  - Returns: Overall status with deployment readiness
+
+**Example usage**:
+```bash
+# Validate dashboard JSON
+$ "Check dashboard JSON for errors"
+# Delegates to lovelace-dashboard-tester for JSON validation
+
+# Full dashboard validation before deploy
+$ "Validate my dashboard before deploying"
+# Delegates for comprehensive validation
+
+# Check if dashboard is registered
+$ "Why is my dashboard not showing in sidebar?"
+# Delegates for registration check
+```
+
+**Output format**:
+```
+[STATUS] ✅ Full Dashboard Validation Complete
+
+Overall: PASS
+Ready to deploy: YES
+
+Validation Results:
+✅ JSON Syntax: All 3 dashboards valid
+✅ Registration: All dashboards registered
+⚠️ Entity References: 2 unavailable entities
+✅ Card Configuration: All 132 cards valid
+
+[STATUS] Dashboard ready with warnings. Review unavailable entities.
+```
+
+**Key features**:
+- **JSON syntax validation**: Catches JSON errors before deployment
+- **Registration verification**: Ensures dashboards appear in sidebar
+- **Entity reference checking**: Verifies all entities exist and are available
+- **Card configuration validation**: Validates card types, options, and templates
+- **Structured reporting**: Clear status with specific locations and fixes
+- **Deployment readiness**: Overall assessment with deployment steps
+
+**Dashboard patterns**:
+- **Invalid JSON**: Trailing commas, missing commas, unclosed brackets
+- **Dashboard not registered**: Missing from lovelace_dashboards registry
+- **Entity not found**: Typos, deleted entities, wrong domains
+- **Invalid card type**: Typos, custom cards not installed
+- **Template errors**: Invalid Jinja2 syntax, undefined variables
+- **Missing required options**: Card-specific required fields
+- **Dashboard not loading**: Browser cache, JSON errors, missing custom cards
+
+**Safety rules** (inherited from HA Manager skill):
+- **ALWAYS backup before modifying**: Never modify dashboard without backup
+- **Validate JSON before deployment**: Invalid JSON breaks dashboards
+- **NEVER restart for dashboard changes**: Dashboards load on browser refresh
+- **ALWAYS use hass-cli**: Never curl for HA API
+- **Use timeouts**: All validation commands must have timeouts
+
+**Integration with other subagents**:
+- **Config Validator**: Can validate YAML entities referenced in dashboards
+- **Deployment Orchestrator**: Deploys validated dashboards via SCP
+- **HA Log Analyzer**: Checks logs for dashboard load errors
+- **Note**: Dashboards don't require restart, just browser refresh
+
+**See also**: `.claude/skills/home-assistant-manager/subagents/lovelace-dashboard-tester/PROMPT.md` for complete subagent documentation
+
+---
+
 ## Troubleshooting
 
 **If something goes wrong:**

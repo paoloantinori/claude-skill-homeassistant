@@ -1,0 +1,120 @@
+# Workflow: JSON Syntax Validation
+
+**Purpose**: Validate dashboard JSON structure and syntax
+
+**When to use**: Before deploying dashboard changes, after editing dashboards
+
+**Timeout**: 20 seconds (JSON validation for all dashboards)
+
+**Steps**:
+```yaml
+1. identify_dashboards:
+    pattern: ".storage/lovelace.*"
+    exclude: ["lovelace_dashboards"]
+    timeout: 5
+
+2. validate_json:
+    for_each: "{{dashboards}}"
+    command: "python3 -m json.tool {{dashboard}}"
+    timeout: 5
+    catch_errors: true
+    parse_errors: true
+
+3. parse_json_structure:
+    extract_elements:
+      - views
+      - cards
+      - badges
+    timeout: 5
+
+4. report:
+    format: "json_validation_report"
+    include:
+      - dashboards_checked
+      - json_errors
+      - structure_summary
+      - view_count
+      - card_count
+```
+
+**Output Template**:
+```
+[STATUS] {{emoji}} JSON Validation Complete
+
+Dashboards: {{dashboard_count}} checked
+Errors: {{error_count}}
+
+{{#if has_errors}}
+JSON Errors:
+{{#each error}}
+🚨 {{dashboard}}:{{line}}
+   Error: {{error_message}}
+   Context: {{error_context}}
+   → Action: Fix JSON syntax
+{{/each}}
+{{/if}}
+
+{{#if no_errors}}
+Validation Results:
+{{#each dashboard}}
+✅ {{name}}: Valid JSON ({{views}} views, {{cards}} cards)
+{{/each}}
+{{/if}}
+
+[STATUS] {{closing_message}}
+```
+
+**Success Example**:
+```
+[STATUS] ✅ JSON Validation Complete
+
+Dashboards: 3 checked
+Errors: 0
+
+Validation Results:
+✅ lovelace.control_center: Valid JSON (5 views, 42 cards)
+✅ lovelace.my_home: Valid JSON (8 views, 67 cards)
+✅ lovelace.tablet: Valid JSON (3 views, 23 cards)
+
+[STATUS] All dashboards have valid JSON.
+```
+
+**Error Example**:
+```
+[STATUS] 🚨 JSON Validation Complete
+
+Dashboards: 3 checked
+Errors: 1
+
+JSON Errors:
+🚨 lovelace.control_center:15
+   Error: Expecting property name enclosed in double quotes
+   Context: Line 15, column 3
+   → Action: Fix JSON syntax, check for missing quotes or commas
+
+Validation Results:
+✅ lovelace.my_home: Valid JSON (8 views, 67 cards)
+✅ lovelace.tablet: Valid JSON (3 views, 23 cards)
+
+[STATUS] 1 dashboard has JSON errors. Fix before deploying.
+```
+
+**Parameters**:
+- `dashboards`: Specific dashboards to check (optional, if not provided checks all)
+- `show_structure`: Whether to show structure summary (default: true)
+
+**Usage Examples**:
+```yaml
+# Validate all dashboards
+json_validation()
+
+# Validate specific dashboard
+json_validation(
+  dashboards: [".storage/lovelace.control_center"]
+)
+
+# Validate without structure summary
+json_validation(
+  show_structure: false
+)
+```

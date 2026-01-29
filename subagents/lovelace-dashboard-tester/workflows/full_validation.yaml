@@ -1,0 +1,186 @@
+# Workflow: Full Dashboard Validation
+
+**Purpose**: Comprehensive validation before deployment
+
+**When to use**: Before deploying dashboard changes, final validation
+
+**Timeout**: 90 seconds (complete validation: JSON + registration + entities + cards)
+
+**Steps**:
+```yaml
+1. json_syntax_validation:
+    workflow: "json_validation"
+    timeout: 20
+
+2. registration_check:
+    workflow: "registration_check"
+    timeout: 25
+
+3. entity_verification:
+    workflow: "entity_verification"
+    timeout: 30
+
+4. card_validation:
+    workflow: "card_validation"
+    timeout: 40
+
+5. deployment_readiness:
+    assess: "overall_status"
+    criteria:
+      - json_valid: true
+      - registered: true
+      - entities_exist: true
+      - cards_valid: true
+    timeout: 5
+
+6. report:
+    format: "full_validation_report"
+    include:
+      - overall_status
+      - ready_to_deploy
+      - all_issues
+      - recommendations
+      - deployment_steps
+```
+
+**Output Template**:
+```
+[STATUS] {{emoji}} Full Dashboard Validation Complete
+
+Overall: {{overall_status}} (PASS|FAIL|WARN)
+Ready to deploy: {{ready_to_deploy}} (YES|NO)
+
+Validation Results:
+{{#each validation_check}}
+{{emoji}} {{check_name}}: {{status}} - {{description}}
+{{#if has_issues}}
+   {{#each issue}}
+   → {{issue}}
+   {{/each}}
+{{/if}}
+{{/each}}
+
+{{#if has_issues}}
+Issues Found:
+{{#each issue}}
+🚨 {{issue}}
+   → Location: {{dashboard}}:{{location}}
+   → Impact: {{impact}}
+   → Action: {{fix}}
+{{/each}}
+{{/if}}
+
+{{#if ready_to_deploy}}
+Deployment Steps:
+1. Deploy: scp {{dashboard}} ha:/homeassistant/.storage/
+2. Refresh browser (Ctrl+F5 or Cmd+Shift+R)
+3. Verify dashboard loads correctly
+{{/if}}
+
+{{#if not_ready_to_deploy}}
+Fix Required:
+{{#each fix}}
+1. {{fix_step}}
+{{/each}}
+{{/if}}
+
+[STATUS] {{closing_message}}
+```
+
+**Success Example**:
+```
+[STATUS] ✅ Full Dashboard Validation Complete
+
+Overall: PASS
+Ready to deploy: YES
+
+Validation Results:
+✅ JSON Syntax: PASS - All 3 dashboards valid
+✅ Registration: PASS - All dashboards registered
+✅ Entity References: PASS - All 45 entities exist
+✅ Card Configuration: PASS - All 132 cards valid
+
+[STATUS] All dashboards are ready to deploy.
+
+Deployment Steps:
+1. Deploy: scp .storage/lovelace.control_center ha:/homeassistant/.storage/
+2. Refresh browser (Ctrl+F5 or Cmd+Shift+R)
+3. Verify dashboard loads correctly
+```
+
+**Warning Example**:
+```
+[STATUS] ⚠️ Full Dashboard Validation Complete
+
+Overall: WARN
+Ready to deploy: YES (with warnings)
+
+Validation Results:
+✅ JSON Syntax: PASS - All 3 dashboards valid
+✅ Registration: PASS - All dashboards registered
+⚠️ Entity References: WARN - 2 unavailable entities
+✅ Card Configuration: PASS - All 132 cards valid
+
+Issues Found:
+⚠️ sensor.offline_sensor
+   → Location: lovelace.my_home:view3:card2
+   → Impact: Card may show "unavailable"
+   → Action: Check device status or use entity-filter card
+
+[STATUS] Dashboard ready with warnings. Review unavailable entities.
+```
+
+**Failure Example**:
+```
+[STATUS] 🚨 Full Dashboard Validation Complete
+
+Overall: FAIL
+Ready to deploy: NO
+
+Validation Results:
+🚨 JSON Syntax: FAIL - 1 dashboard has JSON errors
+✅ Registration: PASS - All dashboards registered
+🚨 Entity References: FAIL - 2 missing entities
+✅ Card Configuration: PASS - All cards valid
+
+Issues Found:
+🚨 lovelace.control_center:line15
+   → Location: .storage/lovelace.control_center:15
+   → Impact: Invalid JSON breaks entire dashboard
+   → Action: Fix JSON syntax (missing comma)
+
+🚨 sensor.nonexistent_sensor
+   → Location: lovelace.tablet:view1:card3
+   → Impact: Card will fail to load
+   → Action: Remove entity reference or create entity
+
+Fix Required:
+1. Fix JSON syntax in lovelace.control_center (line 15)
+2. Remove or create sensor.nonexistent_sensor
+3. Re-run validation to confirm fixes
+
+[STATUS] Fix errors before deploying.
+```
+
+**Parameters**:
+- `dashboard_files`: Specific dashboards to validate (optional, if not provided validates all)
+- `skip_registration`: Skip registration check (default: false)
+- `skip_entities`: Skip entity verification (default: false)
+- `skip_cards`: Skip card validation (default: false)
+
+**Usage Examples**:
+```yaml
+# Full validation of all dashboards
+full_validation()
+
+# Full validation of specific dashboard
+full_validation(
+  dashboard_files: [".storage/lovelace.control_center"]
+)
+
+# Quick validation (skip entity and card checks)
+full_validation(
+  skip_entities: true,
+  skip_cards: true
+)
+```

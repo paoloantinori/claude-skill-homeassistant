@@ -1,0 +1,174 @@
+# Workflow: Dashboard Registration Check
+
+**Purpose**: Verify dashboards are properly registered in lovelace_dashboards
+
+**When to use**: After creating new dashboard, dashboard not appearing in sidebar
+
+**Timeout**: 25 seconds (registry check + file listing + cross-reference)
+
+**Steps**:
+```yaml
+1. read_registry:
+    file: ".storage/lovelace_dashboards"
+    timeout: 5
+    parse_json: true
+
+2. list_dashboard_files:
+    pattern: ".storage/lovelace.*"
+    exclude: ["lovelace_dashboards"]
+    timeout: 5
+
+3. cross_reference:
+    compare: "registry vs files"
+    identify:
+      - missing_registrations
+      - orphaned_registrations
+    timeout: 5
+
+4. report:
+    format: "registration_report"
+    include:
+      - registered_dashboards
+      - unregistered_dashboards
+      - orphaned_registrations
+      - registration_status
+```
+
+**Output Template**:
+```
+[STATUS] {{emoji}} Dashboard Registration Check Complete
+
+Registered: {{registered_count}} dashboards
+Unregistered: {{unregistered_count}} dashboards
+Orphaned: {{orphaned_count}} registrations
+
+{{#if registered_dashboards}}
+Registered Dashboards:
+{{#each registered}}
+✅ {{title}} ({{filename}})
+   → ID: {{id}}
+   → URL: /{{url_path}}
+   → Icon: {{icon}}
+{{/each}}
+{{/if}}
+
+{{#if unregistered_dashboards}}
+Unregistered Dashboards:
+{{#each unregistered}}
+🚨 {{name}} ({{filename}})
+   → Action: Add to .storage/lovelace_dashboards
+   → Required: HA restart after registration
+   → Registration template: {{registration_template}}
+{{/each}}
+{{/if}}
+
+{{#if orphaned_registrations}}
+Orphaned Registrations:
+{{#each orphan}}
+⚠️ {{title}} ({{id}})
+   → File: {{expected_file}} not found
+   → Action: Remove registration or create dashboard file
+{{/each}}
+{{/if}}
+
+[STATUS] {{closing_message}}
+```
+
+**Success Example**:
+```
+[STATUS] ✅ Dashboard Registration Check Complete
+
+Registered: 3 dashboards
+Unregistered: 0 dashboards
+Orphaned: 0 registrations
+
+Registered Dashboards:
+✅ Control Center (lovelace.control_center)
+   → ID: control-center
+   → URL: /control-center
+   → Icon: mdi:tablet-dashboard
+
+✅ My Home (lovelace.my_home)
+   → ID: my-home
+   → URL: /my-home
+   → Icon: mdi:home
+
+✅ Tablet (lovelace.tablet)
+   → ID: tablet
+   → URL: /tablet
+   → Icon: mdi:tablet
+
+[STATUS] All dashboards properly registered.
+```
+
+**Unregistered Dashboard Example**:
+```
+[STATUS] ⚠️ Dashboard Registration Check Complete
+
+Registered: 3 dashboards
+Unregistered: 1 dashboard
+Orphaned: 0 registrations
+
+Registered Dashboards:
+✅ control-center (lovelace.control_center)
+✅ my-home (lovelace.my_home)
+✅ tablet (lovelace.tablet)
+
+Unregistered Dashboards:
+🚨 new-dashboard (lovelace.new_dashboard)
+   → Action: Add to .storage/lovelace_dashboards
+   → Required: HA restart after registration
+   → Registration template:
+     {
+       "id": "new_dashboard",
+       "show_in_sidebar": true,
+       "icon": "mdi:tablet-dashboard",
+       "title": "New Dashboard",
+       "require_admin": false,
+       "mode": "storage",
+       "url_path": "new-dashboard"
+     }
+
+[STATUS] 1 dashboard requires registration.
+```
+
+**Orphaned Registration Example**:
+```
+[STATUS] ⚠️ Dashboard Registration Check Complete
+
+Registered: 3 dashboards
+Unregistered: 0 dashboards
+Orphaned: 1 registration
+
+Registered Dashboards:
+✅ control-center (lovelace.control_center)
+✅ my-home (lovelace.my_home)
+✅ tablet (lovelace.tablet)
+
+Orphaned Registrations:
+⚠️ Old Dashboard (old_dashboard)
+   → File: .storage/lovelace.old_dashboard not found
+   → Action: Remove registration or create dashboard file
+
+[STATUS] 1 orphaned registration found.
+```
+
+**Parameters**:
+- `registry_file`: Path to registry file (default: .storage/lovelace_dashboards)
+- `dashboard_pattern`: Pattern for dashboard files (default: .storage/lovelace.*)
+
+**Usage Examples**:
+```yaml
+# Check registration for all dashboards
+registration_check()
+
+# Check specific registry file
+registration_check(
+  registry_file: ".storage/lovelace_dashboards"
+)
+
+# Check specific dashboard pattern
+registration_check(
+  dashboard_pattern: ".storage/lovelace.*"
+)
+```

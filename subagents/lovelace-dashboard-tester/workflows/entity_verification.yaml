@@ -1,0 +1,135 @@
+# Workflow: Entity Reference Verification
+
+**Purpose**: Verify all entities referenced in dashboard cards exist
+
+**When to use**: After adding entities to dashboard, troubleshooting missing cards
+
+**Timeout**: 30 seconds (entity extraction + state list + verification)
+
+**Steps**:
+```yaml
+1. extract_entities:
+    from: "{{dashboard_files}}"
+    patterns:
+      - "entity_id"
+      - "entities"
+      - "entity"
+    timeout: 10
+
+2. fetch_entity_list:
+    command: "source .env && hass-cli state list"
+    timeout: 10
+    parse_entities: true
+
+3. verify_existence:
+    compare: "extracted vs fetched"
+    identify_missing: true
+    check_unavailable: true
+    timeout: 10
+
+4. report:
+    format: "entity_verification_report"
+    include:
+      - total_referenced
+      - found_entities
+      - missing_entities
+      - unavailable_entities
+      - card_locations
+```
+
+**Output Template**:
+```
+[STATUS] {{emoji}} Entity Verification Complete
+
+Referenced: {{total_referenced}} entities
+Found: {{found_count}}
+Missing: {{missing_count}}
+Unavailable: {{unavailable_count}}
+
+{{#if missing_entities}}
+Missing Entities:
+{{#each missing}}
+🚨 {{entity_id}}
+   → Location: {{dashboard}}, view {{view}}, card {{card}}
+   → Action: Remove card or create entity
+{{/each}}
+{{/if}}
+
+{{#if unavailable_entities}}
+Unavailable Entities (may be normal):
+{{#each unavailable}}
+⚠️ {{entity_id}}
+   → Location: {{dashboard}}, view {{view}}, card {{card}}
+   → State: {{state}}
+   → Note: {{note}}
+{{/each}}
+{{/if}}
+
+{{#if no_issues}}
+✅ All {{total_referenced}} entities exist and are available.
+{{/if}}
+
+[STATUS] {{closing_message}}
+```
+
+**Success Example**:
+```
+[STATUS] ✅ Entity Verification Complete
+
+Referenced: 45 entities
+Found: 45
+Missing: 0
+Unavailable: 0
+
+✅ All 45 entities exist and are available.
+
+[STATUS] All dashboard entities are valid.
+```
+
+**Missing Entities Example**:
+```
+[STATUS] 🚨 Entity Verification Complete
+
+Referenced: 45 entities
+Found: 43
+Missing: 2
+Unavailable: 3
+
+Missing Entities:
+🚨 sensor.nonexistent_sensor
+   → Location: lovelace.control_center, view 2, card 5
+   → Action: Remove card or create entity
+
+🚨 switch.unknown_switch
+   → Location: lovelace.tablet, view 1, card 3
+   → Action: Verify entity ID or remove card
+
+Unavailable Entities (may be normal):
+⚠️ sensor.offline_sensor
+   → Location: lovelace.my_home, view 3, card 2
+   → State: unavailable
+   → Note: Device may be powered off
+
+[STATUS] 2 missing entities need attention.
+```
+
+**Parameters**:
+- `dashboard_files`: Specific dashboards to check (optional, if not provided checks all)
+- `check_unavailable`: Whether to warn about unavailable entities (default: true)
+- `show_location`: Whether to show card locations (default: true)
+
+**Usage Examples**:
+```yaml
+# Verify entities for all dashboards
+entity_verification()
+
+# Verify entities for specific dashboard
+entity_verification(
+  dashboard_files: [".storage/lovelace.control_center"]
+)
+
+# Verify without checking unavailable status
+entity_verification(
+  check_unavailable: false
+)
+```

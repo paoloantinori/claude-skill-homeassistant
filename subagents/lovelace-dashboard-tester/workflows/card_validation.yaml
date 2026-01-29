@@ -1,0 +1,194 @@
+# Workflow: Card Configuration Validation
+
+**Purpose**: Validate card configurations and identify potential issues
+
+**When to use**: After adding/modifying cards, troubleshooting card display issues
+
+**Timeout**: 40 seconds (card parsing + type validation + option checking + template validation)
+
+**Steps**:
+```yaml
+1. parse_cards:
+    from: "{{dashboard_files}}"
+    extract:
+      - card_type
+      - card_config
+      - entity_references
+    timeout: 10
+
+2. validate_card_types:
+    check: "valid card types"
+    against: "known_card_types"
+    identify_invalid: true
+    timeout: 5
+
+3. validate_card_options:
+    for_each: "{{cards}}"
+    check: "required_options"
+    validate_option_types: true
+    timeout: 10
+
+4. check_template_expressions:
+    extract: "jinja2 templates"
+    validate_syntax: true
+    check_variables: true
+    timeout: 10
+
+5. report:
+    format: "card_validation_report"
+    include:
+      - cards_checked
+      - invalid_cards
+      - missing_options
+      - template_errors
+      - warnings
+```
+
+**Output Template**:
+```
+[STATUS] {{emoji}} Card Configuration Validation Complete
+
+Cards: {{card_count}} checked
+Errors: {{error_count}}
+Warnings: {{warning_count}}
+
+{{#if invalid_cards}}
+Invalid Cards:
+{{#each invalid}}
+🚨 {{dashboard}}, view {{view}}, card {{card}}
+   → Type: {{card_type}} (invalid)
+   → Issue: {{issue}}
+   → Action: {{fix_action}}
+{{/each}}
+{{/if}}
+
+{{#if missing_options}}
+Missing Options:
+{{#each missing}}
+⚠️ {{dashboard}}, view {{view}}, card {{card}}
+   → Type: {{card_type}}
+   → Missing: {{missing_option}}
+   → Action: Add required option
+{{/each}}
+{{/if}}
+
+{{#if template_errors}}
+Template Errors:
+{{#each template_error}}
+⚠️ {{dashboard}}, view {{view}}, card {{card}}
+   → Error: {{error_message}}
+   → Action: {{fix_action}}
+{{/each}}
+{{/if}}
+
+{{#if no_issues}}
+✅ All cards have valid configurations.
+{{/if}}
+
+[STATUS] {{closing_message}}
+```
+
+**Success Example**:
+```
+[STATUS] ✅ Card Configuration Validation Complete
+
+Cards: 132 checked
+Errors: 0
+Warnings: 0
+
+✅ All cards have valid configurations.
+
+[STATUS] All dashboard cards are properly configured.
+```
+
+**Warnings Example**:
+```
+[STATUS] ⚠️ Card Configuration Validation Complete
+
+Cards: 132 checked
+Errors: 0
+Warnings: 2
+
+Invalid Cards:
+None ✅
+
+Template Warnings:
+⚠️ lovelace.control_center, view 3, card 7
+   → Type: custom:config-template-card
+   → Error: Undefined variable 'maybe_undefined'
+   → Action: Ensure variable exists or use default value
+
+⚠️ lovelace.tablet, view 1, card 2
+   → Type: markdown
+   → Error: Unavailable attribute 'state_attr() for last_updated'
+   → Action: Use states.entity.last_updated instead
+
+[STATUS] Review warnings before deploying.
+```
+
+**Invalid Card Example**:
+```
+[STATUS] 🚨 Card Configuration Validation Complete
+
+Cards: 132 checked
+Errors: 1
+Warnings: 2
+
+Invalid Cards:
+🚨 lovelace.control_center, view 2, card 5
+   → Type: entities-card (typo, should be "entities")
+   → Issue: Unknown card type
+   → Action: Fix card type to "entities"
+
+Template Warnings:
+⚠️ lovelace.control_center, view 3, card 7
+   → Error: Undefined variable 'maybe_undefined'
+   → Action: Ensure variable exists or use default value
+
+[STATUS] 1 invalid card needs fixing.
+```
+
+**Known Valid Card Types**:
+```yaml
+Standard cards:
+  - entity
+  - entities
+  - glance
+  - history-graph
+  - picture-elements
+  - picture-entity
+  - picture-glance
+  - state-switch
+  - state-label
+  - thermostat
+  - vertical-stack
+  - horizontal-stack
+  - grid
+  - markdown
+  - sensor
+  - gauge
+  - custom:config-template-card
+  - custom:button-card
+  - custom:mini-graph-card
+```
+
+**Parameters**:
+- `dashboard_files`: Specific dashboards to check (optional, if not provided checks all)
+- `check_templates`: Whether to validate template expressions (default: true)
+- `check_custom_cards`: Whether to validate custom card installations (default: false)
+
+**Usage Examples**:
+```yaml
+# Validate cards for all dashboards
+card_validation()
+
+# Validate cards for specific dashboard
+card_validation(
+  dashboard_files: [".storage/lovelace.control_center"]
+)
+
+# Validate without template checking
+card_validation(
+  check_templates: false
+)
+```
