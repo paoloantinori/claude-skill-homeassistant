@@ -1,0 +1,208 @@
+# Workflow: Git Deployment (Final Changes)
+
+**Purpose**: Deploy finalized changes via git with full version control
+
+**When to use**: Changes are complete and ready for version control
+
+**Timeout**: 90 seconds (includes commit, push, status check, pull, reload)
+
+**Steps**:
+```yaml
+1. validate_local:
+    command: "python3 -c \"import yaml; yaml.safe_load(open('{{file}}'))\""
+    timeout: 5
+    for_each: "{{changed_files}}"
+    catch_errors: true
+
+2. commit_and_push:
+    command: "git add {{files}} && git commit -m '{{message}}' && git push"
+    timeout: 15
+    parse_output: true
+
+3. check_server_status:
+    command: "ssh -oVisualHostKey=no ha 'cd /homeassistant && git status'"
+    timeout: 10
+    parse_output: true
+    extract_state: true
+
+4. analyze_server_state:
+    if: "working_tree_clean"
+    then:
+        goto_step: 8
+    else:
+        goto_step: 5
+
+5. inspect_changes:
+    command: "ssh -oVisualHostKey=no ha 'cd /homeassistant && git diff {{file}}'"
+    timeout: 10
+    for_each: "{{modified_files}}"
+    analyze_diff: true
+    identify_source: true
+
+6. analyze_diff:
+    decision_point: "Are these MY scp changes or EXTERNAL modifications?"
+    if: "only_my_scp_changes"
+    then:
+        goto_step: 7
+    else:
+        return: "EXTERNAL_CHANGES_DETECTED"
+        message: "External modifications found. Please review before proceeding."
+
+7. discard_and_pull:
+    command: "ssh -oVisualHostKey=no ha 'cd /homeassistant && git checkout -- {{files}} && git pull'"
+    timeout: 15
+    parse_output: true
+
+8. pull_clean:
+    command: "ssh -oVisualHostKey=no ha 'cd /homeassistant && git pull'"
+    timeout: 15
+    parse_output: true
+
+9. reload_components:
+    command: "source .env && hass-cli service call {{component}}.reload"
+    timeout: 10
+    for_each: "{{affected_components}}"
+
+10. verify_deployment:
+    command: "source .env && hass-cli state get {{test_entity}}"
+    timeout: 10
+    parse_output: true
+
+11. report:
+    format: "git_deployment_success_report"
+    include:
+      - method
+      - files_deployed
+      - components_reloaded
+      - git_commit_hash
+      - verification_status
+```
+
+**Output Template**:
+```
+[STATUS] {{emoji}} Git Deployment Complete
+
+Method: Git
+Files: {{file_count}}
+Components reloaded: {{component_list}}
+Commit: {{commit_hash}}
+
+Deployment Steps:
+{{#each step}}
+{{emoji}} {{step_name}}: {{status}} - {{description}}
+{{/each}}
+
+{{#if has_issues}}
+Issues Found:
+{{#each issue}}
+🚨 {{issue}}
+   → Impact: {{impact}}
+   → Action: {{fix}}
+{{/each}}
+{{/if}}
+
+{{#if verification_passed}}
+✅ Verification: {{test_entity}} = {{entity_state}}
+{{/if}}
+
+[STATUS] {{closing_message}}
+```
+
+**Success Example**:
+```
+[STATUS] ✅ Git Deployment Complete
+
+Method: Git
+Files: 2
+Components reloaded: automation, script
+Commit: 1a2b3c4d
+
+Deployment Steps:
+✅ Local validation: PASS - All 2 files valid YAML
+✅ Commit and push: SUCCESS - Committed and pushed to origin/master
+✅ Server status: Clean - No uncommitted changes
+✅ Git pull: SUCCESS - Updated to latest commit
+✅ Reload: SUCCESS - automation and script reloaded
+✅ Verification: PASS - Test entities responding correctly
+
+✅ Verification: automation.test_action = on
+✅ Verification: script.test_script = idle
+
+[STATUS] Deployment successful. Changes are now active.
+```
+
+**Conflict Detected Example**:
+```
+[STATUS] ⚠️ External Changes Detected
+
+Method: Git
+Status: AWAITING_USER_INPUT
+
+Server has uncommitted changes:
+🔍 automations/test.yaml: Shows external modifications
+   → Diff shows changes NOT from this session
+   → Last modified: 2 hours ago (before this session)
+   → Action: Review changes before proceeding
+
+Options:
+1. Review diff: ssh ha "cd /homeassistant && git diff automations/test.yaml"
+2. Manual merge: Investigate and merge manually
+3. Override (dangerous): Only if you're certain these changes should be discarded
+
+[STATUS] Deployment paused. Please review external changes.
+```
+
+**Multiple Files Example**:
+```
+[STATUS] ✅ Git Deployment Complete
+
+Method: Git
+Files: 4
+Components reloaded: automation, script, template
+Commit: 5e6f7g8h
+
+Deployment Steps:
+✅ Local validation: PASS - All 4 files valid YAML
+✅ Commit and push: SUCCESS - Committed 4 files to origin/master
+✅ Server status: Has uncommitted changes (2 files)
+✅ Diff inspection: Only SCP changes detected (safe to discard)
+✅ Git checkout: SUCCESS - Discarded 2 SCP files
+✅ Git pull: SUCCESS - Updated to latest commit
+✅ Reload: SUCCESS - automation, script, template reloaded
+✅ Verification: PASS - All test entities responding
+
+✅ Verification: automation.test_1 = on
+✅ Verification: automation.test_2 = idle
+✅ Verification: sensor.test_template = 42
+
+[STATUS] Deployment successful. Changes are now active.
+```
+
+**Parameters**:
+- `files`: List of files to deploy
+- `message`: Git commit message
+- `affected_components`: List of components to reload (automation, script, template)
+- `test_entities`: List of entities to verify after deployment
+
+**Usage Examples**:
+```yaml
+# Deploy single file
+git_deployment(
+  files: ["automations/test.yaml"],
+  message: "Add test automation",
+  affected_components: ["automation"],
+  test_entities: ["automation.test"]
+)
+
+# Deploy multiple files
+git_deployment(
+  files: [
+    "automations/test.yaml",
+    "scripts/my_script.yaml",
+    "templates/sensor.yaml"
+  ],
+  message: "Add test automation and script",
+  affected_components: ["automation", "script", "template"],
+  test_entities: ["automation.test", "script.my_script", "sensor.test_template"]
+)
+```

@@ -1,0 +1,261 @@
+# Workflow: Deployment Status Check
+
+**Purpose**: Check deployment state and identify potential issues
+
+**When to use**: Before deployment, after deployment, or troubleshooting
+
+**Timeout**: 45 seconds (comprehensive status check)
+
+**Steps**:
+```yaml
+1. check_local_git:
+    command: "git status --short"
+    timeout: 5
+    parse_output: true
+    extract_changes: true
+
+2. check_server_git:
+    command: "ssh -oVisualHostKey=no ha 'cd /homeassistant && git status'"
+    timeout: 10
+    parse_output: true
+    extract_state: true
+
+3. check_component_status:
+    command: "source .env && hass-cli state list | grep -E '^(automation|script|template)\\.' | wc -l"
+    timeout: 10
+    parse_output: true
+
+4. check_recent_logs:
+    command: "timeout 10 ssh -oVisualHostKey=no ha 'ha core logs | tail -30'"
+    timeout: 15
+    parse_errors: true
+    extract_warnings: true
+
+5. report:
+    format: "status_report"
+    include:
+      - local_git_state
+      - server_git_state
+      - component_counts
+      - recent_errors
+      - recent_warnings
+      - recommendations
+      - deployment_ready
+```
+
+**Output Template**:
+```
+[STATUS] {{emoji}} Deployment Status Report
+
+Local Git:
+  Branch: {{local_branch}}
+  Status: {{local_status}}
+{{#if has_local_changes}}
+  Changes:
+{{#each local_change}}
+    → {{file}} ({{status}})
+{{/each}}
+{{/if}}
+
+Server Git:
+  Branch: {{server_branch}}
+  Status: {{server_status}}
+{{#if has_server_changes}}
+  Uncommitted changes:
+{{#each server_change}}
+    → {{file}}
+{{/each}}
+{{/if}}
+
+Components:
+  Automations: {{automation_count}}
+  Scripts: {{script_count}}
+  Templates: {{template_count}}
+
+Recent Logs:
+{{#if has_errors}}
+  🚨 Errors: {{error_count}}
+{{#each error}}
+  → {{error_message}}
+{{/each}}
+{{/if}}
+
+{{#if has_warnings}}
+  ⚠️ Warnings: {{warning_count}}
+{{#each warning}}
+  → {{warning_message}}
+{{/each}}
+{{/if}}
+
+{{#if no_errors}}
+  ✅ No errors in last 30 log lines
+{{/if}}
+
+Recommendations:
+{{#each recommendation}}
+  → {{recommendation}}
+{{/each}}
+
+Deployment Ready: {{ready_status}}
+
+[STATUS] {{closing_message}}
+```
+
+**Healthy System Example**:
+```
+[STATUS] ✅ Deployment Status Report
+
+Local Git:
+  Branch: master
+  Status: Clean (no changes)
+
+Server Git:
+  Branch: master
+  Status: Clean (working tree clean)
+
+Components:
+  Automations: 156
+  Scripts: 42
+  Templates: 12
+
+Recent Logs:
+  ✅ No errors in last 30 log lines
+  ⚠️ Warnings: 2
+  → Template variable 'maybe_undefined' may not exist
+  → Entity 'sensor.offline_device' unavailable
+
+Recommendations:
+  → System healthy, ready for deployment
+  → Consider reviewing template variable warnings
+  → Check offline_device availability if critical
+
+Deployment Ready: YES
+
+[STATUS] System healthy, ready for deployment.
+```
+
+**Has Local Changes Example**:
+```
+[STATUS] ⚠️ Deployment Status Report
+
+Local Git:
+  Branch: master
+  Status: 3 files modified
+  Changes:
+    → automations/test.yaml (modified)
+    → scripts/my_script.yaml (modified)
+    → templates/sensor.yaml (new)
+
+Server Git:
+  Branch: master
+  Status: Clean (working tree clean)
+
+Components:
+  Automations: 156
+  Scripts: 42
+  Templates: 12
+
+Recent Logs:
+  ✅ No errors in last 30 log lines
+
+Recommendations:
+  → Ready to deploy via Git workflow
+  → Commit changes: git add automations/test.yaml scripts/my_script.yaml templates/sensor.yaml
+  → Push: git push
+  → Pull on server: ssh ha "cd /homeassistant && git pull"
+
+Deployment Ready: YES (pending commit)
+
+[STATUS] Local changes ready to deploy.
+```
+
+**Server Has Changes Example**:
+```
+[STATUS] ⚠️ Deployment Status Report
+
+Local Git:
+  Branch: master
+  Status: Clean (no changes)
+
+Server Git:
+  Branch: master
+  Status: 2 files have uncommitted changes
+  Uncommitted changes:
+    → automations/test.yaml
+    → scripts/my_script.yaml
+
+Components:
+  Automations: 156
+  Scripts: 42
+  Templates: 12
+
+Recent Logs:
+  ⚠️ Warnings: 1
+  → Entity 'sensor.test_sensor' unavailable
+
+Recommendations:
+  → Server has uncommitted changes
+  → Review changes: ssh ha "cd /homeassistant && git diff"
+  → If safe: Commit or discard changes
+  → If external: Investigate source of changes
+
+Deployment Ready: NO (server has uncommitted changes)
+
+[STATUS] Review server changes before deploying.
+```
+
+**Has Errors Example**:
+```
+[STATUS] 🚨 Deployment Status Report
+
+Local Git:
+  Branch: master
+  Status: Clean
+
+Server Git:
+  Branch: master
+  Status: Clean
+
+Components:
+  Automations: 156
+  Scripts: 42
+  Templates: 12
+
+Recent Logs:
+  🚨 Errors: 2
+  → Error loading automation.asciugatrice_rimuovi_bottone_telegram_quando_scaricata: Template error: int got invalid input '' when rendering template
+  → Service call failed: notify.telegram - Message not sent
+
+Recommendations:
+  → Fix template error in asciugatrice automation
+  → Check Telegram notification configuration
+  → Review: automations/asciugatrice/asciugatrice.yaml:210
+  → Fix: Change | int to | int(0) for empty string handling
+
+Deployment Ready: NO (has errors)
+
+[STATUS] Fix errors before deploying.
+```
+
+**Parameters**:
+- `check_logs`: Whether to check recent logs (default: true)
+- `log_lines`: Number of log lines to check (default: 30)
+- `show_recommendations`: Whether to show deployment recommendations (default: true)
+
+**Usage Examples**:
+```yaml
+# Quick status check
+status_check()
+
+# Comprehensive status with more log lines
+status_check(
+  check_logs: true,
+  log_lines: 100,
+  show_recommendations: true
+)
+
+# Status check without log analysis
+status_check(
+  check_logs: false
+)
+```

@@ -426,6 +426,105 @@ Validation Results:
 
 ---
 
+### Deployment Orchestrator
+
+**Location**: `.claude/skills/home-assistant-manager/subagents/deployment-orchestrator/` (skill-embedded)
+
+**Purpose**: Automate deployment workflow decisions and execution for Home Assistant configuration changes
+
+**Triggers** (auto-delegates to deployment orchestrator):
+- Keywords: "deploy to ha", "deploy changes", "git deployment", "scp deployment", "sync to server", "deployment status"
+- Context: After automation/script/template changes, user asks "deploy this"
+- Explicit: "Deploy via git", "Deploy via scp", "Check deployment status", "Sync changes to server"
+
+**Workflows**:
+- **Git Deployment (Final Changes)**: Deploy finalized changes via git with full version control (90s timeout)
+  - Validate local → Commit and push → Check server status → (dirty?) → Diff inspection → Discard and pull → Reload → Verify
+  - Returns: Deployment success with commit hash, component reloaded, verification status
+
+- **Rapid SCP Deployment (Testing)**: Fast deployment iteration during development (30s timeout)
+  - Quick validate → Deploy via SCP → Reload components → Quick test
+  - Returns: Deployment success with iteration count, reminds to commit to git when done
+
+- **SCP + Git Sync (Finalize Tested Changes)**: Sync SCP-tested changes to git (60s timeout)
+  - Commit local → Check server status → Inspect changes → Discard and pull → Final reload
+  - Returns: Sync success with commit hash, server state before/after
+
+- **Deployment Status Check**: Check deployment state and identify issues (45s timeout)
+  - Check local git → Check server git → Check component status → Check recent logs
+  - Returns: Comprehensive status report with recommendations
+
+**Example usage**:
+```bash
+# Deploy finalized changes via git
+$ "Deploy this automation via git"
+# Delegates to deployment-orchestrator for git deployment
+
+# Rapid testing iteration
+$ "Deploy this script via SCP for testing"
+# Delegates for rapid SCP deployment
+
+# Check deployment status
+$ "Check deployment status"
+# Delegates for comprehensive status check
+
+# Sync tested changes to git
+$ "Sync my SCP changes to git"
+# Delegates for SCP + git sync workflow
+```
+
+**Output format**:
+```
+[STATUS] ✅ Git Deployment Complete
+
+Method: Git
+Files: 2
+Components reloaded: automation, script
+Commit: 1a2b3c4d
+
+Deployment Steps:
+✅ Local validation: PASS - All 2 files valid YAML
+✅ Commit and push: SUCCESS - Committed and pushed to origin/master
+✅ Server status: Clean - No uncommitted changes
+✅ Git pull: SUCCESS - Updated to latest commit
+✅ Reload: SUCCESS - automation and script reloaded
+✅ Verification: PASS - Test entities responding correctly
+
+[STATUS] Deployment successful. Changes are now active.
+```
+
+**Key features**:
+- **Workflow selection**: Chooses appropriate deployment method (Git vs SCP) based on context
+- **Conflict resolution**: Safely handles git conflicts and external modifications
+- **Safety enforcement**: Never discards changes without inspection (git diff before checkout)
+- **Deployment automation**: Executes deployment steps with validation and verification
+- **State management**: Tracks deployment state and provides rollback if needed
+- **Structured reporting**: Clear status with actionable steps and rollback information
+
+**Safety rules** (inherited from HA Manager skill):
+- **ALWAYS git status BEFORE git pull**: Never pull without checking state
+- **ALWAYS git diff BEFORE git checkout**: Never discard changes without inspection
+- **NEVER git reset --hard**: Can lose uncommitted work without warning
+- **ALWAYS use hass-cli**: Never curl for HA API
+- **Use timeouts**: All deployment commands must have timeouts
+
+**Deployment patterns**:
+- **Git Status Before Pull**: Check server git status before pulling to prevent conflicts
+- **Git Diff Before Checkout**: Inspect changes before discarding to prevent data loss
+- **Component Reload Selection**: Choose correct reload based on file type (automation/script/template)
+- **Conflict Recovery**: Safely recover from git pull conflicts with inspection
+- **Rollback on Failure**: Rollback deployment if verification fails
+
+**Integration with other subagents**:
+- **Config Validator**: Deployment Orchestrator calls Config Validator before deployment
+- **Automation Verifier**: Deployment Orchestrator deploys → Automation Verifier verifies
+- **HA Log Analyzer**: Deployment Orchestrator deploys → HA Log Analyzer checks logs
+- **Complete lifecycle**: Validate (Config Validator) → Deploy (Deployment Orchestrator) → Verify (Automation Verifier) → Check Logs (HA Log Analyzer)
+
+**See also**: `.claude/skills/home-assistant-manager/subagents/deployment-orchestrator/PROMPT.md` for complete subagent documentation
+
+---
+
 ## Troubleshooting
 
 **If something goes wrong:**

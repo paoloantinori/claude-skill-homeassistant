@@ -1,0 +1,174 @@
+# Workflow: Rapid SCP Deployment (Testing)
+
+**Purpose**: Fast deployment iteration during development and testing
+
+**When to use**: Still testing changes, need rapid iteration
+
+**Timeout**: 30 seconds (fast iteration cycle)
+
+**Steps**:
+```yaml
+1. quick_validate:
+    command: "python3 -c \"import yaml; yaml.safe_load(open('{{file}}'))\""
+    timeout: 5
+    for_each: "{{files}}"
+    catch_errors: true
+
+2. deploy_via_scp:
+    command: "scp {{file}} ha:/homeassistant/{{remote_path}}/"
+    timeout: 10
+    for_each: "{{files}}"
+    parse_output: true
+
+3. reload_components:
+    command: "source .env && hass-cli service call {{component}}.reload"
+    timeout: 10
+    parse_output: true
+
+4. quick_test:
+    command: "source .env && hass-cli state get {{test_entity}}"
+    timeout: 10
+    parse_output: true
+
+5. report:
+    format: "rapid_scp_report"
+    track_iterations: true
+    remind_git_sync: true
+    include:
+      - files_deployed
+      - iteration_count
+      - deployment_time
+      - reload_status
+      - test_results
+```
+
+**Output Template**:
+```
+[STATUS] {{emoji}} Rapid SCP Deployment Complete
+
+Method: SCP (Testing)
+Files deployed: {{file_count}}
+Iterations: {{iteration_count}}
+Time: {{deployment_time}}s
+
+Deployment Steps:
+{{#each step}}
+{{emoji}} {{step_name}}: {{status}} - {{description}}
+{{/each}}
+
+{{#if has_test_results}}
+Test Results:
+{{#each test}}
+✅ {{entity}}: {{state}}
+{{/each}}
+{{/if}}
+
+⚠️ Reminder: Commit to git when testing is complete!
+→ Use "SCP + Git Sync" workflow to finalize
+
+[STATUS] {{closing_message}}
+```
+
+**Success Example**:
+```
+[STATUS] ✅ Rapid SCP Deployment Complete
+
+Method: SCP (Testing)
+Files deployed: 1
+Iterations: 3
+Time: 8.2s
+
+Deployment Steps:
+✅ Validation: PASS - YAML syntax valid
+✅ SCP deploy: SUCCESS - File copied to server
+✅ Reload: SUCCESS - automation reloaded
+✅ Quick test: PASS - Test entity responding correctly
+
+Test Results:
+✅ automation.test_automation: on
+✅ sensor.test_result: active
+
+⚠️ Reminder: Commit to git when testing is complete!
+→ Use "SCP + Git Sync" workflow to finalize
+
+[STATUS] Ready for next iteration or git sync.
+```
+
+**Multiple Files Example**:
+```
+[STATUS] ✅ Rapid SCP Deployment Complete
+
+Method: SCP (Testing)
+Files deployed: 3
+Iterations: 5
+Time: 12.4s
+
+Deployment Steps:
+✅ Validation: PASS - All 3 files valid YAML
+✅ SCP deploy: SUCCESS - All files copied to server
+✅ Reload: SUCCESS - automation, script, template reloaded
+✅ Quick test: PASS - All test entities responding correctly
+
+Test Results:
+✅ automation.test_1: on
+✅ script.test_script: idle
+✅ sensor.test_template: 42
+
+⚠️ Reminder: Commit to git when testing is complete!
+→ Use "SCP + Git Sync" workflow to finalize
+
+[STATUS] Ready for next iteration or git sync.
+```
+
+**Error Example**:
+```
+[STATUS] 🚨 Rapid SCP Deployment Failed
+
+Method: SCP (Testing)
+Files deployed: 0/1
+Iterations: 1
+
+Deployment Steps:
+✅ Validation: PASS - YAML syntax valid
+🚨 SCP deploy: FAIL - Connection error
+   → Error: ssh: connection to ha refused
+   → Action: Check SSH connectivity, verify ha alias
+
+[STATUS] Deployment failed. Fix issues and retry.
+```
+
+**Parameters**:
+- `files`: List of files to deploy
+- `remote_path`: Remote path relative to /homeassistant/ (default: same as local)
+- `affected_components`: List of components to reload
+- `test_entities`: List of entities to verify after deployment
+- `iteration_count`: Track number of iterations (auto-incremented)
+
+**Usage Examples**:
+```yaml
+# Deploy single file
+rapid_scp(
+  files: ["automations/test.yaml"],
+  affected_components: ["automation"],
+  test_entities: ["automation.test"]
+)
+
+# Deploy multiple files with custom path
+rapid_scp(
+  files: [
+    "automations/test.yaml",
+    "scripts/my_script.yaml"
+  ],
+  remote_path: "automations/test",
+  affected_components: ["automation", "script"],
+  test_entities: ["automation.test", "script.my_script"]
+)
+
+# Deploy templates
+rapid_scp(
+  files: ["templates/sensor.yaml"],
+  remote_path: "",
+  affected_components: ["template"],
+  test_entities: ["sensor.test_template"]
+)
+```

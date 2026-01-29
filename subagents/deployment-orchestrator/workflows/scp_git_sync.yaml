@@ -1,0 +1,196 @@
+# Workflow: SCP + Git Sync (Finalize Tested Changes)
+
+**Purpose**: Sync SCP-tested changes to git version control
+
+**When to use**: Changes tested via SCP, ready to commit
+
+**Timeout**: 60 seconds (commit, push, status check, diff, checkout, pull, reload)
+
+**Steps**:
+```yaml
+1. commit_local:
+    command: "git add {{files}} && git commit -m '{{message}}' && git push"
+    timeout: 15
+    parse_output: true
+
+2. check_server_status:
+    command: "ssh -oVisualHostKey=no ha 'cd /homeassistant && git status'"
+    timeout: 10
+    parse_output: true
+    extract_state: true
+
+3. if_server_clean:
+    condition: "working_tree_clean"
+    then:
+        goto_step: 7
+
+4. inspect_changes:
+    command: "ssh -oVisualHostKey=no ha 'cd /homeassistant && git diff {{file}}'"
+    timeout: 10
+    for_each: "{{scp_files}}"
+    analyze_diff: true
+    identify_source: true
+
+5. analyze_diff:
+    decision_point: "Are these ONLY the SCP changes from this session?"
+    if: "only_my_scp_changes"
+    then:
+        goto_step: 6
+    else:
+        return: "EXTERNAL_CHANGES_DETECTED"
+        message: "Mixed or external changes found. Manual review required."
+
+6. discard_and_pull:
+    command: "ssh -oVisualHostKey=no ha 'cd /homeassistant && git checkout -- {{files}} && git pull'"
+    timeout: 15
+    parse_output: true
+
+7. pull_clean:
+    command: "ssh -oVisualHostKey=no ha 'cd /homeassistant && git pull'"
+    timeout: 15
+    parse_output: true
+
+8. final_reload:
+    command: "source .env && hass-cli service call {{component}}.reload"
+    timeout: 10
+    parse_output: true
+
+9. report:
+    format: "git_sync_report"
+    include:
+      - files_synced
+      - git_commit_hash
+      - server_state_before
+      - server_state_after
+      - reload_status
+```
+
+**Output Template**:
+```
+[STATUS] {{emoji}} SCP + Git Sync Complete
+
+Method: SCP + Git Sync
+Files: {{file_count}}
+Commit: {{commit_hash}}
+
+Sync Steps:
+{{#each step}}
+{{emoji}} {{step_name}}: {{status}} - {{description}}
+{{/each}}
+
+{{#if had_to_discard}}
+Server State:
+  Before: Uncommitted changes (expected after SCP)
+  After: Clean (synced with git)
+{{/if}}
+
+[STATUS] {{closing_message}}
+```
+
+**Success Example**:
+```
+[STATUS] ✅ SCP + Git Sync Complete
+
+Method: SCP + Git Sync
+Files: 2
+Commit: 9h8i7j6k
+
+Sync Steps:
+✅ Local commit: SUCCESS - Committed 2 files to origin/master
+✅ Server status: Has uncommitted changes (expected after SCP)
+✅ Diff inspection: Only SCP changes detected (safe to discard)
+✅ Git checkout: SUCCESS - Discarded 2 SCP files
+✅ Git pull: SUCCESS - Updated to latest commit
+✅ Reload: SUCCESS - automation and script reloaded
+
+Server State:
+  Before: Uncommitted changes (expected after SCP)
+  After: Clean (synced with git)
+
+[STATUS] Changes now in version control and active on server.
+```
+
+**External Changes Detected Example**:
+```
+[STATUS] ⚠️ External Changes Detected
+
+Method: SCP + Git Sync
+Files: 1
+Status: AWAITING_USER_INPUT
+
+Sync Steps:
+✅ Local commit: SUCCESS - Committed to origin/master
+✅ Server status: Has uncommitted changes
+⚠️ Diff inspection: Mixed changes detected
+
+Issue:
+🔍 automations/test.yaml: Shows BOTH SCP and external changes
+   → Your SCP changes: Template modification (expected)
+   → External changes: Trigger modification (unknown source)
+   → Last external change: 1 hour ago
+   → Action: Manual merge required
+
+Options:
+1. Review full diff: ssh ha "cd /homeassistant && git diff automations/test.yaml"
+2. Manual merge: Investigate external changes, merge manually
+3. Override (dangerous): Discard all changes (not recommended)
+
+[STATUS] Sync paused. Manual review required.
+```
+
+**Clean Server Example**:
+```
+[STATUS] ✅ SCP + Git Sync Complete
+
+Method: SCP + Git Sync
+Files: 3
+Commit: 1k2l3m4n
+
+Sync Steps:
+✅ Local commit: SUCCESS - Committed 3 files to origin/master
+✅ Server status: Clean (no uncommitted changes)
+✅ Git pull: SUCCESS - Updated to latest commit (no conflicts)
+✅ Reload: SUCCESS - automation, script, template reloaded
+
+Server State:
+  Before: Clean (already in sync)
+  After: Clean (updated to latest commit)
+
+[STATUS] Changes now in version control and active on server.
+```
+
+**Parameters**:
+- `files`: List of files to sync (should be the same files deployed via SCP)
+- `message`: Git commit message
+- `affected_components`: List of components to reload
+- `scp_files`: Files that were deployed via SCP (for diff inspection)
+- `expect_uncommitted`: Whether server is expected to have uncommitted changes (default: true)
+
+**Usage Examples**:
+```yaml
+# Sync after testing single file
+scp_git_sync(
+  files: ["automations/test.yaml"],
+  message: "Add test automation after testing",
+  affected_components: ["automation"],
+  scp_files: ["automations/test.yaml"],
+  expect_uncommitted: true
+)
+
+# Sync after testing multiple files
+scp_git_sync(
+  files: [
+    "automations/test.yaml",
+    "scripts/my_script.yaml",
+    "templates/sensor.yaml"
+  ],
+  message: "Add test automations and scripts after testing",
+  affected_components: ["automation", "script", "template"],
+  scp_files: [
+    "automations/test.yaml",
+    "scripts/my_script.yaml",
+    "templates/sensor.yaml"
+  ],
+  expect_uncommitted: true
+)
+```
