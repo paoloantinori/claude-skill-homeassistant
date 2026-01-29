@@ -1,0 +1,175 @@
+# Workflow: Full End-to-End Verification
+
+**Purpose**: Complete testing cycle for automation changes with comprehensive validation
+
+**When to use**: After modifying an automation, before considering it "done"
+
+**Timeout**: 60 seconds (full verification cycle)
+
+**Steps**:
+```yaml
+1. validate_config:
+    command: "ssh -oVisualHostKey=no ha 'ha core check'"
+    timeout: 10
+    exit_on_failure: true
+    error_message: "Config validation failed. Fix errors before deploying."
+
+2. deploy_changes:
+    method: "scp"  # or "git" based on user context
+    source: "{{local_file}}"
+    target: "ha:/homeassistant/"
+    timeout: 10
+
+3. reload_automations:
+    command: "source .env && hass-cli service call automation.reload"
+    timeout: 5
+    wait: 2
+
+4. manual_trigger:
+    command: "source .env && hass-cli service call automation.trigger --arguments entity_id={{automation_name}}"
+    timeout: 5
+
+5. monitor_execution:
+    command: "timeout 30 ssh -oVisualHostKey=no ha 'ha core logs -f'"
+    filter: "grep -E '{{automation_name}}|Triggered|Executing|Error|Completed'"
+    timeout: 30
+    capture_trace: true
+
+6. verify_outcome:
+    depends_on: "automation_type"
+    methods:
+      notification: "Check logs for telegram/Alexa notification sent"
+      state_change: "Verify entity state changed to expected value"
+      script: "Confirm script executed without errors"
+    timeout: 10
+
+7. report:
+    format: "structured_pass_fail_warn"
+    include:
+      - validation_result
+      - deployment_success
+      - reload_success
+      - execution_trace
+      - verification_result
+      - overall_status
+      - recommendations
+```
+
+**Output Template**:
+```
+[STATUS] {{emoji}} Automation Verification Complete
+
+Automation: {{automation_name}}
+Overall: {{overall_status}} (PASS|FAIL|WARN)
+
+Step-by-Step Results:
+{{#each step}}
+{{emoji}} {{step_name}}: {{status}} - {{description}}
+{{/each}}
+
+Execution Trace:
+{{#each trace_step}}
+{{emoji}} {{timestamp}}: {{message}}
+{{/each}}
+
+Verification:
+{{#if verification_passed}}
+✅ Expected outcome: {{expected_outcome}}
+✅ Confirmation: {{verification_method}}
+{{/if}}
+{{#if verification_failed}}
+❌ Expected outcome: {{expected_outcome}}
+❌ Actual: {{actual_outcome}}
+{{/if}}
+
+{{#if failed}}
+Diagnosis:
+   → Action: {{suggested_action}}
+   → Reference: {{documentation_link}}
+{{/if}}
+
+[STATUS] {{closing_statement}}
+```
+
+**Success Example**:
+```
+[STATUS] ✅ Automation Verification Complete
+
+Automation: automation.notify_test
+Overall: PASS
+
+Step-by-Step Results:
+✅ Config validation: PASS - No errors detected
+✅ Deployment: PASS - Deployed via scp
+✅ Reload: PASS - Automations reloaded successfully
+✅ Trigger: PASS - Manual trigger successful
+✅ Execution: PASS - 4.2 seconds, 3 actions executed
+✅ Verification: PASS - Telegram notification confirmed
+
+Execution Trace:
+✅ 14:32:15: Triggered by: manual
+✅ 14:32:16: Executing step 1: delay
+✅ 14:32:18: Executing step 2: notify.telegram
+✅ 14:32:19: Completed successfully
+
+Verification:
+✅ Expected outcome: Telegram notification sent
+✅ Confirmation: Found "📱 Telegram Notification: Sent" in logs
+
+[STATUS] Automation is working correctly. Ready for production.
+```
+
+**Failure Example**:
+```
+[STATUS] 🚨 Automation Verification Failed
+
+Automation: automation.my_broken
+Overall: FAIL
+
+Step-by-Step Results:
+✅ Config validation: PASS - No errors detected
+✅ Deployment: PASS - Deployed via scp
+✅ Reload: PASS - Automations reloaded successfully
+✅ Trigger: PASS - Manual trigger successful
+🚨 Execution: FAIL - Error detected after 2.1 seconds
+❌ Verification: FAIL - Expected notification not sent
+
+Execution Trace:
+✅ 14:32:15: Triggered by: manual
+🚨 14:32:16: Error executing script: Invalid data for call_service
+   → Service: notify.telegram
+   → Error: Extra keys not allowed @ data['invalid_key']
+
+Diagnosis:
+   → Action: Check service call parameters in action step 2
+   → Test: hass-cli service call notify.telegram --help
+   → Reference: HA Manager skill docs/06_common_mistakes.md (Mistake 4)
+   → Fix: Remove invalid_key from service call data
+
+[STATUS] Automation needs fixes before deployment.
+```
+
+**Parameters**:
+- `automation_name`: Entity ID of automation to test
+- `local_file`: Path to automation file (if using scp deploy)
+- `automation_type`: Type of verification (notification, state_change, script)
+- `expected_outcome`: What should happen when automation fires
+
+**Usage Examples**:
+```yaml
+# Test notification automation
+full_verification(
+  automation_name: "automation.telegram_test",
+  local_file: "automations/telegram_test.yaml",
+  automation_type: "notification",
+  expected_outcome: "Telegram message sent"
+)
+
+# Test state change automation
+full_verification(
+  automation_name: "automation.light_toggle",
+  local_file: "automations/lights.yaml",
+  automation_type: "state_change",
+  expected_outcome: "switch.light changes from off to on"
+)
+```

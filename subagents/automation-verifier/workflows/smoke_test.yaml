@@ -1,0 +1,189 @@
+# Workflow: Post-Deployment Smoke Test
+
+**Purpose**: Verify critical automations still working after unrelated changes
+
+**When to use**: After HA updates, config changes, dependency updates, or system maintenance
+
+**Timeout**: 120 seconds (depends on number of automations tested)
+
+**Steps**:
+```yaml
+1. select_test_automations:
+    criteria: "critical_automations"
+    pattern: "{{automation_pattern}}"
+    examples:
+      - "automation.notifications"
+      - "automation.security_.*"
+      - "automation.safety_.*"
+    timeout: 5
+
+2. trigger_each:
+    sequential: true
+    for_each: "{{automation_list}}"
+    command: "source .env && hass-cli service call automation.trigger --arguments entity_id={{automation}}"
+    timeout: 10
+    capture_result: true
+
+3. verify_each:
+    for_each: "{{automation_list}}"
+    check: "no errors in logs after trigger"
+    command: "ssh -oVisualHostKey=no ha 'ha core logs | tail -20' | grep -E '{{automation}}|Error'"
+    timeout: 5
+
+4. report:
+    format: "smoke_test_summary"
+    include:
+      - total_tested
+      - passed
+      - failed
+      - list_of_failures_with_errors
+      - overall_status
+      - recommendations
+```
+
+**Output Template**:
+```
+[STATUS] {{emoji}} Smoke Test Complete
+
+Tested: {{total_tested}} critical automations
+Passed: {{passed}}
+Failed: {{failed}}
+Overall: {{overall_status}} (PASS|FAIL|WARN)
+
+{{#if failed}}
+Failed Automations:
+{{#each failure}}
+🚨 {{automation_name}}
+   → Error: {{error_message}}
+   → Action: {{suggested_action}}
+{{/each}}
+{{/if}}
+
+{{#if all_passed}}
+✅ All critical automations tested successfully
+✅ System is stable after changes
+{{/if}}
+
+Recommendations:
+{{#each recommendation}}
+   - {{recommendation}}
+{{/each}}
+```
+
+**Success Example**:
+```
+[STATUS] ✅ Smoke Test Complete
+
+Tested: 5 critical automations
+Passed: 5
+Failed: 0
+Overall: PASS
+
+✅ All critical automations tested successfully
+✅ System is stable after changes
+
+Recommendations:
+   - No action needed
+   - System ready for normal operation
+```
+
+**Partial Failure Example**:
+```
+[STATUS] ⚠️ Smoke Test Complete
+
+Tested: 5 critical automations
+Passed: 4
+Failed: 1
+Overall: WARN
+
+Failed Automations:
+🚨 automation.security_alert
+   → Error: Service call failed - notify.telegram not responding
+   → Action: Check Telegram notification service configuration
+
+Recommendations:
+   - Review failed automation above
+   - Check notification service connectivity
+   - Re-test after fixes
+```
+
+**Multiple Failures Example**:
+```
+[STATUS] 🚨 Smoke Test Failed
+
+Tested: 5 critical automations
+Passed: 2
+Failed: 3
+Overall: FAIL
+
+Failed Automations:
+🚨 automation.security_alert
+   → Error: Service call failed - notify.telegram
+   → Action: Check Telegram notification service
+
+🚨 automation.backup_warning
+   → Error: Template error - undefined variable 'backup_state'
+   → Action: Fix template in automation.backup_warning
+
+🚨 automation.emergency_shutdown
+   → Error: Entity not found - switch.emergency_stop
+   → Action: Verify switch.emergency_stop exists
+
+Recommendations:
+   - System may be unstable after changes
+   - Review and fix all failed automations
+   - Re-run smoke test after fixes
+   - Consider rollback if critical automations affected
+```
+
+**Parameters**:
+- `automation_pattern`: Regex pattern for selecting automations to test
+- `automation_list`: Explicit list of automation entity IDs (alternative to pattern)
+
+**Usage Examples**:
+```yaml
+# Test all security-related automations
+smoke_test(
+  automation_pattern: "automation.security_.*"
+)
+
+# Test specific critical automations
+smoke_test(
+  automation_list: [
+    "automation.security_alert",
+    "automation.fire_alarm",
+    "automation.emergency_shutdown"
+  ]
+)
+
+# Test all notification automations
+smoke_test(
+  automation_pattern: "automation..*_notification"
+)
+```
+
+**Pre-defined Automation Sets**:
+
+**Critical Set** (safety and security):
+```yaml
+- automation.security_alert
+- automation.fire_alarm
+- automation.emergency_shutdown
+- automation.gas_leak_alert
+- automation.water_leak_alert
+```
+
+**Notifications Set** (communications):
+```yaml
+- automation.telegram_test
+- automation.alexa_announcement
+- automation.mobile_app_notify
+```
+
+**Daily Operations Set** (common tasks):
+```yaml
+- automation.morning_routine
+- automation.night_mode
+- automation.away_mode
+- automation.home_mode
+```

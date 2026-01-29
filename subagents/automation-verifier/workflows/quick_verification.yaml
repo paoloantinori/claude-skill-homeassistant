@@ -1,0 +1,130 @@
+# Workflow: Quick Verification (Deploy-Reload-Trigger)
+
+**Purpose**: Fast verification during active development, rapid iteration
+
+**When to use**: Testing automation changes frequently, don't need full state verification
+
+**Timeout**: 30 seconds (rapid cycle)
+
+**Steps**:
+```yaml
+1. deploy:
+    method: "scp"
+    source: "{{local_file}}"
+    target: "ha:/homeassistant/"
+    timeout: 10
+
+2. reload:
+    command: "source .env && hass-cli service call automation.reload"
+    timeout: 5
+    wait: 2
+
+3. trigger:
+    command: "source .env && hass-cli service call automation.trigger --arguments entity_id={{automation_name}}"
+    timeout: 5
+
+4. quick_log_check:
+    command: "ssh -oVisualHostKey=no ha 'ha core logs | tail -30'"
+    filter: "grep -E 'ERROR|error| {{automation_name}}'"
+    timeout: 5
+    check_for_errors: true
+
+5. report:
+    format: "quick_status"
+    include:
+      - deployment_success
+      - reload_success
+      - trigger_success
+      - error_check
+      - overall_status
+```
+
+**Output Template**:
+```
+[STATUS] {{emoji}} Quick Verification Complete
+
+Automation: {{automation_name}}
+Result: {{overall_status}} (PASS|FAIL)
+
+{{#each step}}
+{{emoji}} {{step_name}}: {{status}}
+{{/each}}
+
+{{#if has_errors}}
+⚠️ Errors detected:
+{{#each error}}
+   {{error_message}}
+{{/each}}
+   → Action: Review logs above for details
+{{/if}}
+
+{{#if passed}}
+✅ Quick verification passed
+ℹ️ Full verification recommended before production
+{{/if}}
+```
+
+**Success Example**:
+```
+[STATUS] ✅ Quick Verification Complete
+
+Automation: automation.my_test
+Result: PASS
+
+✅ Deployment: Successful (file.yaml deployed)
+✅ Reload: Successful (automations reloaded)
+✅ Trigger: Successful (manual trigger executed)
+✅ Error check: No errors detected
+
+✅ Quick verification passed
+ℹ️ Full verification recommended before production
+```
+
+**Warning Example**:
+```
+[STATUS] ⚠️ Quick Verification Complete
+
+Automation: automation.my_test
+Result: WARN
+
+✅ Deployment: Successful (file.yaml deployed)
+✅ Reload: Successful (automations reloaded)
+✅ Trigger: Successful (manual trigger executed)
+⚠️ Error check: Warnings detected
+
+⚠️ Warnings:
+   Template variable warning: 'maybe_undefined' in automation.my_test
+   → Action: Review template for undefined variables
+
+Quick verification passed with warnings. Review before production.
+```
+
+**Failure Example**:
+```
+[STATUS] 🚨 Quick Verification Failed
+
+Automation: automation.my_broken
+Result: FAIL
+
+✅ Deployment: Successful (file.yaml deployed)
+🚨 Reload: Failed - Error in automation YAML
+❌ Trigger: Skipped (reload failed)
+
+🚨 Errors detected:
+   Failed to generate automation: automation.my_broken
+   → Action: Check YAML syntax, run `ha core check`
+
+Quick verification failed. Fix errors and retry.
+```
+
+**Parameters**:
+- `automation_name`: Entity ID of automation to test
+- `local_file`: Path to automation file
+
+**Usage**:
+```yaml
+quick_verification(
+  automation_name: "automation.test",
+  local_file: "automations/test.yaml"
+)
+```

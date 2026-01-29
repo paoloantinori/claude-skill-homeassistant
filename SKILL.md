@@ -258,6 +258,82 @@ Errors: 0 | Warnings: 0 | Time: 14:32:18
 
 ---
 
+### Automation Verifier
+
+**Location**: `.claude/skills/home-assistant-manager/subagents/automation-verifier/` (skill-embedded)
+
+**Purpose**: End-to-end testing and verification of automation changes with comprehensive validation
+
+**Triggers** (auto-delegates to automation verifier):
+- Keywords: "test automation", "verify automation", "automation working?", "did it work?"
+- Context: After automation YAML changes
+- Explicit: "Test automation end-to-end", "Verify this automation works"
+
+**Workflows**:
+- **Full Verification**: Complete testing cycle with validation (60s timeout)
+  - Config validation → Deploy → Reload → Trigger → Monitor → Verify → Report
+- **Quick Verification**: Fast verification during development (30s timeout)
+  - Deploy → Reload → Trigger → Quick log check
+- **Smoke Test**: Test multiple critical automations (120s timeout)
+  - Select automations → Trigger each → Verify each → Summary report
+
+**Example usage**:
+```bash
+# After editing automation
+$ "Test automation.telegram_test end-to-end"
+# Delegates to automation-verifier for full verification
+
+# Quick verification during development
+$ "Quick verify automation.light_toggle"
+# Delegates for rapid testing
+
+# After system changes
+$ "Run smoke test on security automations"
+# Delegates for smoke testing
+```
+
+**Output format**:
+```
+[STATUS] ✅ Automation Verification Complete
+
+Automation: automation.telegram_test
+Overall: PASS
+
+Step-by-Step Results:
+✅ Config validation: PASS
+✅ Deployment: PASS (via scp)
+✅ Reload: PASS
+✅ Trigger: PASS
+✅ Execution: PASS (4.2 seconds, 3 actions)
+✅ Verification: PASS (Telegram notification confirmed)
+
+[STATUS] Automation is working correctly. Ready for production.
+```
+
+**Key features**:
+- **End-to-end testing**: Complete workflow from deploy to verification
+- **Multi-step orchestration**: Automates complex testing sequences
+- **State verification**: Confirms expected outcomes actually occurred
+- **Structured reporting**: [PASS|FAIL|WARN] with detailed diagnosis
+- **Integration with HA Log Analyzer**: Delegates log analysis for consistency
+
+**Verification types**:
+- **Notification**: Verify Telegram/Alexa messages sent
+- **State change**: Confirm entity state changed
+- **Script execution**: Verify script completed
+- **Service call**: Confirm service executed successfully
+
+**Critical safety rules** (inherited by subagent):
+- **Validate BEFORE deploy**: Always run `ha core check` first
+- **ALWAYS use hass-cli**: Never curl for HA API
+- **NEVER restart without asking**: Follow critical safety rules
+- **Use timeouts**: All monitoring commands have timeouts
+- **Exit cleanly**: Never block waiting for user input
+
+**See also**: `.claude/skills/home-assistant-manager/subagents/automation-verifier/PROMPT.md` for complete subagent documentation
+
+---
+
 ## Troubleshooting
 
 **If something goes wrong:**
