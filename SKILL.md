@@ -334,6 +334,98 @@ Step-by-Step Results:
 
 ---
 
+### Config Validator
+
+**Location**: `.claude/skills/home-assistant-manager/subagents/config-validator/` (skill-embedded)
+
+**Purpose**: Pre-deployment configuration validation to catch errors before they reach production
+
+**Triggers** (auto-delegates to config validator):
+- Keywords: "validate config", "check before deploy", "config errors", "is this valid?", "safe to deploy?"
+- Context: Before ANY deployment (git or scp)
+- Explicit: "Validate this configuration", "Check if there are errors"
+
+**Workflows**:
+- **Pre-Deployment Full Validation**: Comprehensive validation (60s timeout)
+  - HA core check → YAML syntax → Entity existence → Service calls → Templates → Integrations
+  - Returns: [PASS|FAIL|WARN] with specific issues and fixes
+  - Safe to deploy: YES/NO
+
+- **Quick Syntax Check**: Fast YAML syntax validation (20s timeout)
+  - Identify files → YAML syntax check → Basic HA check
+  - Returns: File-level syntax errors with line numbers
+
+- **Entity Reference Checker**: Verify all referenced entities (30s timeout)
+  - Extract entities → Fetch entity list → Verify existence → Check availability
+  - Returns: Missing/unavailable entities with file locations
+
+- **Template Validator**: Validate Jinja2 templates (30s timeout)
+  - Extract templates → Syntax check → Variable verification → Test rendering
+  - Returns: Template errors with context and fixes
+
+**Example usage**:
+```bash
+# Before deploying
+$ "Validate this configuration before deploy"
+# Delegates to config-validator for full validation
+
+# Quick syntax check while editing
+$ "Check YAML syntax for this file"
+# Delegates for rapid syntax validation
+
+# After editing automation
+$ "Are there any config errors?"
+# Delegates to config-validator for validation
+```
+
+**Output format**:
+```
+[STATUS] ✅ Pre-Deployment Validation Complete
+
+Overall: PASS
+Safe to deploy: YES
+
+Validation Results:
+✅ HA Core Config: Valid
+✅ YAML Syntax: All 3 files valid
+✅ Entity References: All 12 entities exist
+✅ Service Calls: All 5 service calls valid
+✅ Templates: All 4 templates syntax correct
+✅ Integrations: All required loaded
+
+[STATUS] Configuration is valid. Safe to deploy.
+```
+
+**Key features**:
+- **Pre-deployment validation**: Catches errors BEFORE deployment (not after)
+- **Multi-layer checks**: YAML, entities, services, templates, integrations
+- **Entity verification**: Confirms all referenced entities exist
+- **Template validation**: Checks Jinja2 syntax and variables
+- **Structured reporting**: [PASS|FAIL|WARN] with specific file:line locations
+- **Actionable fixes**: Every error includes specific fix recommendation
+
+**Validation types**:
+- **YAML Syntax**: Indentation, quotes, colons, structure
+- **Entity References**: Existence, availability, correct domains
+- **Service Calls**: Valid services, correct parameters, schema compliance
+- **Templates**: Jinja2 syntax, variable existence, attribute access
+- **Integrations**: Loaded status, configuration errors
+
+**Critical safety rules** (inherited by subagent):
+- **Validate BEFORE deploy**: Never skip validation, even for "small" changes
+- **ALWAYS use hass-cli**: Never curl for HA API
+- **Use timeouts**: All validation commands have timeouts
+- **Exit cleanly**: Never block waiting for user input
+
+**Integration with other subagents**:
+- **Pre-deployment**: Config Validator validates BEFORE deployment
+- **Post-deployment**: Automation Verifier validates AFTER deployment
+- **Complete lifecycle**: Validate → Deploy → Verify
+
+**See also**: `.claude/skills/home-assistant-manager/subagents/config-validator/PROMPT.md` for complete subagent documentation
+
+---
+
 ## Troubleshooting
 
 **If something goes wrong:**

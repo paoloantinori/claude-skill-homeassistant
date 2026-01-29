@@ -1,0 +1,195 @@
+# Workflow: Pre-Deployment Full Validation
+
+**Purpose**: Comprehensive validation before deploying any changes to Home Assistant
+
+**When to use**: Before ANY deployment (git or scp), mandatory safety check
+
+**Timeout**: 60 seconds (comprehensive validation)
+
+**Steps**:
+```yaml
+1. ha_core_check:
+    command: "timeout 30 ssh -oVisualHostKey=no ha 'ha core check'"
+    parse_output: true
+    exit_on_failure: false
+    timeout: 35
+
+2. yaml_syntax_check:
+    for_each: "{{changed_yaml_files}}"
+    command: "python3 -c \"import yaml; yaml.safe_load(open('{{file}}'))\""
+    timeout: 5
+    catch_errors: true
+
+3. entity_existence_check:
+    extract_entities_from:
+      - automations
+      - scripts
+      - templates
+    command: "source .env && hass-cli state list"
+    timeout: 10
+    verify_all_referenced: true
+    check_unavailable: true
+
+4. service_call_validation:
+    extract_service_calls: true
+    verify_schemas: true
+    check_parameters: true
+    cross_reference: "Developer Tools → Services"
+    timeout: 10
+
+5. template_syntax_check:
+    extract_templates: true
+    verify_jinja2_syntax: true
+    check_undefined_vars: true
+    timeout: 10
+
+6. integration_status_check:
+    verify_required_integrations: true
+    check_loaded_status: true
+    timeout: 5
+
+7. report:
+    format: structured_validation_report
+    include:
+      - ha_core_check_result
+      - yaml_syntax_errors
+      - missing_entities
+      - unavailable_entities
+      - invalid_service_calls
+      - template_errors
+      - integration_issues
+      - overall_status
+      - safe_to_deploy
+      - recommendations
+```
+
+**Output Template**:
+```
+[STATUS] {{emoji}} Pre-Deployment Validation Complete
+
+Overall: {{overall_status}} (PASS|FAIL|WARN)
+Safe to deploy: {{safe_to_deploy}} (YES|NO)
+
+Validation Results:
+{{#each validation_check}}
+{{emoji}} {{check_name}}: {{status}}
+{{#if has_issues}}
+   {{#each issue}}
+   → {{issue}}
+   {{/each}}
+{{/if}}
+{{/each}}
+
+{{#if safe_to_deploy == "YES"}}
+[STATUS] Configuration is valid. Safe to deploy.
+{{else}}
+[STATUS] Fix errors before deploying. Safe to deploy: {{safe_to_deploy}}.
+{{/if}}
+```
+
+**Success Example**:
+```
+[STATUS] ✅ Pre-Deployment Validation Complete
+
+Overall: PASS
+Safe to deploy: YES
+
+Validation Results:
+✅ HA Core Config: Valid - No errors detected
+✅ YAML Syntax: All 3 files valid
+✅ Entity References: All 12 entities exist
+✅ Service Calls: All 5 service calls valid
+✅ Templates: All 4 templates syntax correct
+✅ Integrations: All required loaded
+
+[STATUS] Configuration is valid. Safe to deploy.
+```
+
+**Failure Example**:
+```
+[STATUS] 🚨 Pre-Deployment Validation Failed
+
+Overall: FAIL
+Safe to deploy: NO
+
+Validation Results:
+✅ HA Core Config: Valid - No errors detected
+🚨 YAML Syntax: 1 error
+   → automations/test.yaml:5: mapping values are not allowed here
+   → Context: Invalid YAML structure, likely indentation issue
+   → Action: Fix YAML indentation, check syntax
+
+❌ Entity References: 2 missing entities
+   → sensor.does_not_exist
+      * Location: automation.weather_alert:10
+      * Location: scripts/daily_report:5
+      → Action: Verify entity IDs, check for typos, or create entities
+
+   → binary_sensor.nonexistent
+      * Location: scripts/my_script:2
+      → Action: Create binary_sensor or fix entity ID
+
+⚠️ Service Calls: 1 warning
+   → automation.old_service_call:12: Deprecated parameter
+      → Parameter: 'old_param' is deprecated, use 'new_param'
+      → Action: Update service call to use current parameter
+
+⚠️ Entity Availability: 2 entities currently unavailable
+   → sensor.offline_device
+      → Note: Device may be powered off or unreachable
+      → Action: Check device status if critical
+
+   → binary_sensor.missing_sensor
+      → Note: Sensor has been unavailable for >24 hours
+      → Action: Investigate sensor availability
+
+[STATUS] Fix errors before deploying. Safe to deploy: NO.
+```
+
+**Warning Example** (safe to deploy with warnings):
+```
+[STATUS] ⚠️ Pre-Deployment Validation Complete
+
+Overall: WARN
+Safe to deploy: YES (with warnings)
+
+Validation Results:
+✅ HA Core Config: Valid
+✅ YAML Syntax: All files valid
+✅ Entity References: All entities exist
+✅ Service Calls: All service calls valid
+⚠️ Templates: 2 warnings
+   → automation.my_automation:15: Variable 'maybe_undefined' may not exist
+      → Action: Ensure variable exists or use default value
+
+   → template.sensor.template:8: Uses deprecated filter
+      → Filter: 'timestamp_custom' is deprecated
+      → Action: Use 'as_timestamp' instead
+
+✅ Integrations: All loaded
+
+[STATUS] Configuration is valid with warnings. Safe to deploy, but review warnings.
+```
+
+**Parameters**:
+- `changed_yaml_files`: List of YAML files to validate
+- `validation_level`: strict|normal|lenient (default: normal)
+- `check_unavailable`: Whether to warn about unavailable entities (default: true)
+
+**Usage Examples**:
+```yaml
+# Full validation before deployment
+full_validation(
+  changed_yaml_files: [
+    "automations/new_automation.yaml",
+    "scripts/update_script.yaml"
+  ]
+)
+
+# Strict validation
+full_validation(
+  changed_yaml_files: ["*"],
+  validation_level: "strict",
+  check_unavailable: true
+)
+```
