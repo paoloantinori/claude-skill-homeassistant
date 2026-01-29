@@ -428,6 +428,60 @@ post_reload_check
 
 ---
 
+## Mistake 12: Using `homeassistant.reload_config_entry` for YAML-Defined Entities
+
+**Symptom:** `ValueError: There were no matching config entries to reload`
+
+**What happened:**
+- Tried to reload an input_boolean, template sensor, or other YAML-defined entity
+- Used `homeassistant.reload_config_entry` (designed for UI-configured integrations)
+- YAML-defined entities don't have config entries—they have their own reload services
+
+**❌ WRONG:**
+```bash
+# Trying to reload a YAML-defined input_boolean
+hass-cli service call homeassistant.reload_config_entry --arguments entity_id=input_boolean.paolo_staleness_latch
+# ValueError: There were no matching config entries to reload
+```
+
+**✅ CORRECT:**
+```bash
+# Use the entity-type-specific reload service
+hass-cli service call input_boolean.reload
+```
+
+**Reload services by entity type:**
+
+| Entity Type | Reload Service |
+|-------------|----------------|
+| Automations | `automation.reload` |
+| Scripts | `script.reload` |
+| Input Booleans | `input_boolean.reload` |
+| Input Numbers | `input_number.reload` |
+| Input Selects | `input_select.reload` |
+| Input Text | `input_text.reload` |
+| Input Datetime | `input_datetime.reload` |
+| Input Buttons | `input_button.reload` |
+| Template Entities | `template.reload` |
+| Groups | `group.reload` |
+| Timers | `timer.reload` |
+| Counters | `counter.reload` |
+| Scenes | `scene.reload` |
+| Zones | `zone.reload` |
+| Persons | `person.reload` |
+| MQTT | `mqtt.reload` |
+
+**When TO use `homeassistant.reload_config_entry`:**
+- UI-configured integrations (configured via Settings → Devices & Services)
+- Never for YAML-defined entities
+
+**Prevention:**
+- Check `docs/08_quick_reference.md` for the full reload services table
+- Remember: YAML entities have their own `<domain>.reload` service
+- `homeassistant.reload_config_entry` is only for UI-configured integrations
+
+---
+
 ## Quick Reference: Common Pitfalls
 
 | Mistake | Prevention |
@@ -444,6 +498,7 @@ post_reload_check
 | `state_attr()` for `last_updated` | Use `states.xxx.last_updated` in templates |
 | `state_attr()` in messages | Keep telegram messages simple, avoid nested quotes |
 | Skipping post-deploy log check | **ALWAYS** check logs within 30s after reload |
+| `reload_config_entry` for YAML entities | Use `<domain>.reload` (e.g., `input_boolean.reload`) |
 
 ---
 

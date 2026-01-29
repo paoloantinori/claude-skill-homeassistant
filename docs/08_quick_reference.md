@@ -94,13 +94,52 @@ ssh -oVisualHostKey=no ha "ha core logs | grep -i 'automation' | tail -10"
 | Validate config | `ssh -oVisualHostKey=no ha "ha core check"` |
 | Reload automations | `hass-cli service call automation.reload` |
 | Reload scripts | `hass-cli service call script.reload` |
-| Reload templates | `hass-cli service call homeassistant.reload_template_entity` |
+| Reload templates | `hass-cli service call template.reload` |
 | Trigger automation | `hass-cli service call automation.trigger --arguments entity_id=automation.name` |
 | Check entity state | `hass-cli state get entity.name` |
 | View logs | `ssh -oVisualHostKey=no ha "ha core logs \| tail -50"` |
 | Deploy via SCP | `scp file.yaml ha:/homeassistant/` |
 | Deploy via Git | `ssh -oVisualHostKey=no ha "cd /homeassistant && git status && git pull"` |
 | Restart HA | `ssh -oVisualHostKey=no ha "ha core restart"` (ASK FIRST!) |
+
+---
+
+## Reload Services by Entity Type
+
+**IMPORTANT:** Each entity type has its own reload service. Do NOT use `homeassistant.reload_config_entry` for YAML-defined entities.
+
+| Entity Type | Reload Service |
+|-------------|----------------|
+| Automations | `automation.reload` |
+| Scripts | `script.reload` |
+| Scenes | `scene.reload` |
+| Input Booleans | `input_boolean.reload` |
+| Input Numbers | `input_number.reload` |
+| Input Selects | `input_select.reload` |
+| Input Text | `input_text.reload` |
+| Input Datetime | `input_datetime.reload` |
+| Input Buttons | `input_button.reload` |
+| Template Entities | `template.reload` |
+| Groups | `group.reload` |
+| Timers | `timer.reload` |
+| Counters | `counter.reload` |
+| Schedules | `schedule.reload` |
+| Zones | `zone.reload` |
+| Persons | `person.reload` |
+| MQTT | `mqtt.reload` |
+
+**Wrong (causes error):**
+```bash
+# ❌ This fails for YAML-defined entities
+hass-cli service call homeassistant.reload_config_entry --arguments entity_id=input_boolean.example
+# ValueError: There were no matching config entries to reload
+```
+
+**Correct:**
+```bash
+# ✅ Use the entity-specific reload service
+hass-cli service call input_boolean.reload
+```
 
 ---
 
