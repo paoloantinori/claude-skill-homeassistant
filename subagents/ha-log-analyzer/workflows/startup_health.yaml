@@ -1,0 +1,78 @@
+# Workflow: Startup Health Check
+
+**Purpose**: Verify clean Home Assistant startup after restart
+
+**Trigger**: After restart, or when user asks "is HA starting cleanly?"
+
+**Timeout**: 15 seconds
+
+**Steps**:
+```yaml
+1. check_container:
+    command: "ssh -oVisualHostKey=no ha 'docker ps --filter name=homeassistant'"
+    timeout: 5
+
+2. fetch_startup_logs:
+    command: "ssh -oVisualHostKey=no ha 'ha core logs | tail -100'"
+    timeout: 5
+
+3. check_errors:
+    filter: "grep -E '(ERROR|error|Error|WARNING|warning|Warning)' | tail -15"
+
+4. check_entities:
+    command: "source .env && hass-cli state list | grep -E '(unavailable|unknown|failed)' | head -10"
+    timeout: 10
+
+5. output:
+    format: "structured_health"
+    include:
+      - container_status
+      - startup_errors
+      - unavailable_entities
+      - overall_health
+```
+
+**Output Template**:
+```
+[STATUS] {{emoji}} Startup Health Check Complete
+
+HA Container: {{container_status}}
+Startup errors: {{error_count}}
+Unavailable entities: {{unavailable_count}}
+
+{{#if unavailable_entities}}
+Unavailable entities (may be normal):
+{{#each unavailable_entities}}
+  - {{this}}
+{{/each}}
+{{/if}}
+
+{{#if startup_clean}}
+✅ Home Assistant started cleanly
+{{/if}}
+
+{{#if startup_warnings}}
+⚠️ {{warning_count}} warnings during startup
+{{/if}}
+
+{{#if startup_errors}}
+🚨 {{error_count}} errors during startup
+   → Action: Review logs above for specific issues
+{{/if}}
+```
+
+**Success Example**:
+```
+[STATUS] ✅ Startup Health Check Complete
+
+HA Container: Up 5 minutes
+Startup errors: 0
+Unavailable entities: 2
+
+Unavailable entities (may be normal):
+  - sensor.offline_sensor_1
+  - binary_sensor.offline_device
+
+✅ Home Assistant started cleanly
+⚠️ 2 entities unavailable (likely offline devices)
+```

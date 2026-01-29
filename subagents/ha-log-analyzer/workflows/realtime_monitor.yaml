@@ -1,0 +1,73 @@
+# Workflow: Real-Time Log Monitor
+
+**Purpose**: Monitor logs live for specific patterns with auto-exit
+
+**Trigger**: User requests "monitor logs for X" or "watch logs"
+
+**Timeout**: 60 seconds (default), or until match limit reached
+
+**Steps**:
+```yaml
+1. get_search_pattern:
+    from: "user_input"
+    default: "ERROR|error|automation"
+
+2. monitor_logs:
+    command: "timeout {{timeout}} ssh -oVisualHostKey=no ha 'ha core logs -f'"
+    filter: "grep -E '{{pattern}}' | head -20"
+    timeout: "{{timeout}}"
+    exit_on:
+      - match_limit: 20
+      - timeout: true
+
+3. output:
+    format: "structured_monitor"
+    include:
+      - search_pattern
+      - match_count
+      - duration
+      - matches
+```
+
+**Output Template**:
+```
+[STATUS] 🔄 Real-Time Log Monitoring (auto-exit on {{match_limit}} matches or {{timeout}}s)
+
+Monitoring for: {{pattern}}
+
+{{#each matches}}
+{{emoji}} {{timestamp}}: {{message}}
+{{/each}}
+
+[STATUS] Monitoring complete: {{match_count}} matches, exited after {{duration}} seconds
+```
+
+**Example Output**:
+```
+[STATUS] 🔄 Real-Time Log Monitoring (auto-exit on 20 matches or 60s)
+
+Monitoring for: automation.my_automation|ERROR|error
+
+✅ 14:32:15: Triggered automation.my_automation
+✅ 14:32:16: Executing action notify.telegram
+✅ 14:32:17: Completed automation.my_automation
+
+[STATUS] Monitoring complete: 3 matches, exited after 2 seconds
+```
+
+**Parameters**:
+- `pattern`: Search pattern (regex supported)
+- `timeout`: Maximum seconds to monitor (default: 60)
+- `match_limit`: Exit after N matches (default: 20)
+
+**Usage Examples**:
+```bash
+# Monitor for specific automation
+monitor_logs(pattern="automation.my_automation", timeout=30)
+
+# Monitor for all errors
+monitor_logs(pattern="ERROR|error", timeout=60, match_limit=50)
+
+# Monitor for multiple automations
+monitor_logs(pattern="automation.(gps_update|notification_check)", timeout=120)
+```

@@ -196,6 +196,68 @@ See **[docs/06_common_mistakes.md](docs/06_common_mistakes.md)** for patterns.
 | Templates | `templates/` |
 | Dashboards | `.storage/lovelace.*` |
 
+## Subagent Delegation
+
+This skill delegates specialized tasks to subagents for efficiency and expertise.
+
+### HA Log Analyzer
+
+**Location**: `.claude/skills/home-assistant-manager/subagents/ha-log-analyzer/` (skill-embedded)
+
+**Purpose**: Monitor Home Assistant logs for errors, warnings, and automation execution traces
+
+**Triggers** (auto-delegates to log analyzer):
+- Keywords: "check logs", "log errors", "analyze logs", "automation fired?", "startup issues"
+- Post-deployment: After any `hass-cli service call *.reload`
+- Post-trigger: After `hass-cli service call automation.trigger`
+
+**Workflows**:
+- **Post-Deployment Check**: Scan logs for errors after reload (10s timeout)
+- **Automation Execution Trace**: Monitor specific automation execution (30s timeout)
+- **Startup Health Check**: Verify clean HA startup (15s timeout)
+- **Real-Time Monitor**: Watch logs for specific patterns (60s timeout)
+
+**Example usage**:
+```bash
+# After reloading automations
+$ hass-cli service call automation.reload
+# Skill automatically delegates to ha-log-analyzer for error check
+
+# Manual log analysis
+$ "Check for errors in the logs"
+# Delegates to ha-log-analyzer
+
+# Automation verification
+$ hass-cli service call automation.trigger --arguments entity_id=automation.my_test
+$ "Did it fire?"
+# Delegates to ha-log-analyzer for execution trace
+```
+
+**Output format**:
+```
+[STATUS] ✅ Post-Deployment Log Check Complete
+
+Errors: 0 | Warnings: 0 | Time: 14:32:18
+
+✅ No errors detected in last 50 log lines.
+```
+
+**Key features**:
+- **Timeout enforcement**: All `tail -f` commands wrapped with `timeout` (prevents hanging)
+- **Pattern detection**: Identifies known error patterns (template errors, service call failures)
+- **Actionable diagnosis**: Every error includes suggested fix
+- **Structured output**: Clear status indicators (✅ ⚠️ 🚨) with context
+
+**Critical safety rules** (inherited by subagent):
+- **ALWAYS use timeouts**: `timeout 120 tail -f` (never indefinite)
+- **VisualHostKey=no**: All SSH commands use `ssh -oVisualHostKey=no ha`
+- **hass-cli preferred**: Use `hass-cli`, never curl
+- **Exit cleanly**: Never block waiting for user input
+
+**See also**: `.claude/skills/home-assistant-manager/subagents/ha-log-analyzer/PROMPT.md` for complete subagent documentation
+
+---
+
 ## Troubleshooting
 
 **If something goes wrong:**

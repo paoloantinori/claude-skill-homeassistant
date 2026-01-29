@@ -1,0 +1,87 @@
+# Workflow: Automation Execution Trace
+
+**Purpose**: Monitor logs for specific automation execution after manual trigger
+
+**Trigger**: After `hass-cli service call automation.trigger`
+
+**Timeout**: 30 seconds (automation should complete within this time)
+
+**Steps**:
+```yaml
+1. get_automation_name:
+    from: "context"
+    variable: "automation_name"
+
+2. monitor_logs:
+    command: "timeout 30 ssh -oVisualHostKey=no ha 'ha core logs -f'"
+    filter: "grep -E '{{automation_name}}|Triggered|Executing|Error'"
+    timeout: 30
+    exit_on:
+      - "Completed"
+      - "Error"
+      - timeout
+
+3. parse_trace:
+    extract:
+      - trigger_time
+      - actions_executed
+      - completion_status
+      - errors
+
+4. output:
+    format: "structured_trace"
+    include:
+      - automation_name
+      - duration
+      - result
+      - execution_trace
+```
+
+**Output Template**:
+```
+[STATUS] {{emoji}} Automation Execution Trace Complete
+
+Automation: {{automation_name}}
+Duration: {{duration}} seconds
+Result: {{result}}
+
+Execution trace:
+{{#each trace_step}}
+{{emoji}} {{timestamp}}: {{message}}
+{{/each}}
+
+{{#if failed}}
+🚨 Error detected: {{error_message}}
+   → Action: {{suggested_action}}
+{{/if}}
+```
+
+**Success Example**:
+```
+[STATUS] ✅ Automation Execution Trace Complete
+
+Automation: automation.my_automation
+Duration: 4.2 seconds
+Result: SUCCESS
+
+Execution trace:
+✅ 14:32:15: Triggered by: manual
+✅ 14:32:16: Executing step 1: delay
+✅ 14:32:18: Executing step 2: notify.telegram
+✅ 14:32:19: Completed successfully
+```
+
+**Failure Example**:
+```
+[STATUS] 🚨 Automation Execution Trace Complete
+
+Automation: automation.my_automation
+Duration: 2.1 seconds
+Result: FAILED
+
+Execution trace:
+✅ 14:32:15: Triggered by: manual
+🚨 14:32:16: Error executing script: Invalid data for call_service
+   → Action: Check service call parameters in action step 2
+   → Verify with: hass-cli service call <service> --help
+```

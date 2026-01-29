@@ -1,0 +1,83 @@
+# Workflow: Post-Deployment Error Check
+
+**Purpose**: Check for errors immediately after automation/script/template reload
+
+**Trigger**: After `hass-cli service call *.reload`
+
+**Timeout**: 10 seconds (quick check only)
+
+**Steps**:
+```yaml
+1. wait:
+    duration: 2
+    reason: "Allow reload to complete"
+
+2. fetch_logs:
+    command: "ssh -oVisualHostKey=no ha 'ha core logs | tail -50'"
+    timeout: 5
+
+3. parse_errors:
+    filter: "grep -E '(ERROR|error|Error|WARNING|warning|Warning)' | tail -10"
+    analyze: true
+
+4. output:
+    format: "structured_with_actions"
+    include:
+      - error_count
+      - warning_count
+      - timestamp
+      - diagnosis
+      - suggested_actions
+```
+
+**Output Template**:
+```
+[STATUS] {{emoji}} Post-Deployment Log Check Complete
+
+Errors: {{error_count}} | Warnings: {{warning_count}} | Time: {{timestamp}}
+
+{{#if errors}}
+🚨 Errors detected:
+{{#each errors}}
+   {{this}}
+   → Action: {{suggested_action}}
+{{/each}}
+{{/if}}
+
+{{#if warnings}}
+⚠️ Warnings detected:
+{{#each warnings}}
+   {{this}}
+   → Action: {{suggested_action}}
+{{/each}}
+{{/if}}
+
+{{#if clean}}
+✅ No errors detected in last 50 log lines.
+{{/if}}
+```
+
+**Example Output**:
+```
+[STATUS] ✅ Post-Deployment Log Check Complete
+
+Errors: 0 | Warnings: 0 | Time: 14:32:18
+
+✅ No errors detected in last 50 log lines.
+```
+
+**Error Example**:
+```
+[STATUS] 🚨 Post-Deployment Log Check Complete
+
+Errors: 1 | Warnings: 0 | Time: 14:32:18
+
+🚨 ERROR: Failed to generate automation
+
+   Location: automation.my_automation (line 45)
+   Issue: Template variable error: 'undefined_var' is not defined
+
+   → Action: Check automation.my_automation template for undefined variables
+   → Test: ssh ha "ha core check"
+   → Reference: HA Manager skill docs/06_common_mistakes.md
+```
