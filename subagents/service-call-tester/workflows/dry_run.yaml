@@ -1,0 +1,145 @@
+# Workflow: Dry-Run Service Call
+
+**Purpose**: Test service call without executing (validation only)
+
+**When to use**: Before executing state-changing service calls
+
+**Timeout**: 25 seconds (service check + parameter validation + simulation)
+
+**Steps**:
+```yaml
+1. validate_service_exists:
+    workflow: "service_existence_check"
+    timeout: 15
+
+2. validate_parameters:
+    workflow: "parameter_schema_validation"
+    timeout: 20
+
+3. simulate_call:
+    check: "parameter_completeness"
+    estimate: "service_response"
+    assess: "state_change_risk"
+    timeout: 5
+
+4. report:
+    format: "dry_run_report"
+    include:
+      - service_ready
+      - parameter_status
+      - expected_response
+      - warnings
+      - safe_to_execute
+```
+
+**Output Template**:
+```
+[STATUS] {{emoji}} Dry-Run Service Call Complete
+
+Service: {{service_domain}}.{{service_name}}
+Status: {{status}} (READY|NOT_READY)
+
+Parameters:
+{{#each parameter}}
+{{#if valid}}✅{{/if}}{{#if invalid}}🚨{{/if}} {{name}}: {{value}} ({{type}})
+{{/each}}
+
+Expected Response:
+{{expected_response_description}}
+
+Risk Assessment: {{risk_level}} (NONE|MEDIUM|HIGH)
+
+{{#if has_warnings}}
+Warnings:
+{{#each warning}}
+⚠️ {{warning}}
+{{/each}}
+{{/if}}
+
+{{#if safe_to_execute}}
+✅ Safe to Execute: YES
+{{/if}}
+
+{{#if not_safe}}
+🚨 Safe to Execute: NO
+{{#if reason}}
+→ Reason: {{reason}}
+{{/if}}
+{{/if}}
+
+[STATUS] {{closing_message}}
+```
+
+**Success Example**:
+```
+[STATUS] ✅ Dry-Run Service Call Complete
+
+Service: automation.trigger
+Status: READY
+
+Parameters:
+✅ entity_id: automation.test_automation (string)
+
+Expected Response:
+- Service call will execute immediately
+- Automation will be triggered
+- No return value expected
+
+Risk Assessment: NONE
+
+✅ Safe to Execute: YES
+
+[STATUS] Service call validated and ready to execute.
+```
+
+**High Risk Example**:
+```
+[STATUS] 🚨 Dry-Run Service Call Complete
+
+Service: automation.delete
+Status: NOT_READY
+
+Parameters:
+✅ entity_id: automation.test_automation (string)
+
+Expected Response:
+- Automation will be permanently deleted
+- Cannot be undone
+
+Risk Assessment: HIGH
+
+Warnings:
+⚠️ This is a destructive action
+⚠️ Automation will be permanently deleted
+⚠️ Consider exporting backup before deleting
+
+🚨 Safe to Execute: NO
+→ Reason: Destructive action requires explicit permission
+
+[STATUS] Destructive action detected. Requires explicit user permission.
+```
+
+**Parameters**:
+- `service_domain`: Service domain
+- `service_name`: Service name
+- `parameters`: Service parameters to validate
+- `assess_risk`: Whether to assess risk level (default: true)
+
+**Usage Examples**:
+```yaml
+# Dry run service call
+dry_run(
+  service_domain: "automation",
+  service_name: "trigger",
+  parameters: {
+    "entity_id": "automation.test"
+  }
+)
+
+# Dry run without risk assessment
+dry_run(
+  service_domain: "homeassistant",
+  service_name: "reload_template_entity",
+  assess_risk: false
+)
+```

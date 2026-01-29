@@ -1,0 +1,130 @@
+# Workflow: Execute Service Call (Read-Only)
+
+**Purpose**: Execute read-only service calls for testing and verification
+
+**When to use**: Testing state queries, information retrieval services
+
+**Timeout**: 20 seconds (read-only check + execution + response validation)
+
+**Steps**:
+```yaml
+1. validate_read_only:
+    check: "service_type"
+    is: "read_only"
+    verify: "no_state_change"
+    timeout: 5
+
+2. execute_service_call:
+    command: "source .env && hass-cli service call {{service}} --arguments '{{arguments}}'"
+    timeout: 15
+    capture_response: true
+
+3. validate_response:
+    check: "response_format"
+    verify: "no_errors"
+    timeout: 5
+
+4. report:
+    format: "service_call_report"
+    include:
+      - service_called
+      - parameters_used
+      - response_received
+      - execution_time
+      - success_status
+```
+
+**Output Template**:
+```
+[STATUS] {{emoji}} Service Call Executed (Read-Only)
+
+Service: {{service_domain}}.{{service_name}}
+Type: READ-ONLY
+
+Parameters:
+{{#each parameter}}
+- {{name}}: {{value}}
+{{/each}}
+
+Execution Time: {{time}} seconds
+
+Response:
+{{response}}
+
+[STATUS] {{closing_message}}
+```
+
+**Success Example**:
+```
+[STATUS] ✅ Service Call Executed (Read-Only)
+
+Service: homeassistant.reload_template_entity
+Type: READ-ONLY
+
+Parameters:
+{}
+
+Execution Time: 2.3 seconds
+
+Response:
+✅ Template entities reloaded successfully
+
+[STATUS] Read-only service call executed successfully.
+```
+
+**Error Example**:
+```
+[STATUS] 🚨 Service Call Failed (Read-Only)
+
+Service: homeassistant.reload_template_entity
+Type: READ-ONLY
+
+Parameters:
+{}
+
+Execution Time: 1.1 seconds
+
+Response:
+🚨 Error: Template error in template.sensor
+   → Error: Undefined variable 'sensor.x'
+   → Action: Fix template before reloading
+
+[STATUS] Service call failed. Fix template error.
+```
+
+**Not Read-Only Example**:
+```
+[STATUS] 🚨 Service Call Blocked
+
+Service: light.turn_on
+Type: NOT READ-ONLY
+
+Parameters:
+- entity_id: light.living_room
+
+🚨 BLOCKED: This service changes state
+→ Action: Use dry_run workflow first
+→ Or use Execute Service Call (State-Change) with explicit permission
+
+[STATUS] State-changing service blocked. Use dry_run first.
+```
+
+**Parameters**:
+- `service_domain`: Service domain
+- `service_name`: Service name
+- `arguments`: Service call arguments (optional)
+
+**Usage Examples**:
+```yaml
+# Execute read-only service
+execute_service(
+  service_domain: "homeassistant",
+  service_name: "reload_template_entity"
+)
+
+# Execute with parameters
+execute_service(
+  service_domain: "automation",
+  service_name: "reload"
+)
+```

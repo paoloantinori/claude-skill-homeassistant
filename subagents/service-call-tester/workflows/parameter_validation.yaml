@@ -1,0 +1,157 @@
+# Workflow: Parameter Schema Validation
+
+**Purpose**: Validate service parameters against service schema
+
+**When to use**: Before calling a service, troubleshooting parameter errors
+
+**Timeout**: 20 seconds (fetch schema + validate parameters)
+
+**Steps**:
+```yaml
+1. fetch_service_schema:
+    command: "source .env && hass-cli raw get /api/services/{{service_domain}}/{{service_name}}"
+    timeout: 10
+    parse_schema: true
+
+2. validate_parameters:
+    check: "provided_parameters"
+    against: "schema_requirements"
+    identify:
+      - missing_required
+      - invalid_parameters
+      - extra_parameters
+      - type_mismatches
+    timeout: 10
+
+3. report:
+    format: "parameter_validation_report"
+    include:
+      - validation_status
+      - required_parameters
+      - optional_parameters
+      - parameter_errors
+      - suggestions
+```
+
+**Output Template**:
+```
+[STATUS] {{emoji}} Parameter Schema Validation Complete
+
+Service: {{service_domain}}.{{service_name}}
+Validation: {{status}} (PASS|WARN|FAIL)
+
+Required Parameters:
+{{#each required}}
+✅ {{name}} ({{type}})
+{{/each}}
+
+Optional Parameters:
+{{#each optional}}
+✅ {{name}} ({{type}})
+{{/each}}
+
+{{#if has_errors}}
+Parameter Issues:
+{{#each error}}
+🚨 {{issue}}
+   → Parameter: {{parameter}}
+   → Expected: {{expected}}
+   → Provided: {{provided}}
+   → Action: {{fix}}
+{{/each}}
+{{/if}}
+
+{{#if no_errors}}
+✅ All parameters are valid
+{{/if}}
+
+[STATUS] {{closing_message}}
+```
+
+**Success Example**:
+```
+[STATUS] ✅ Parameter Schema Validation Complete
+
+Service: notify.telegram
+Validation: PASS
+
+Required Parameters:
+✅ message (string)
+
+Optional Parameters:
+✅ target (list)
+✅ title (string)
+✅ data (dict)
+
+✅ All parameters are valid
+
+[STATUS] Parameters validated successfully.
+```
+
+**Warning Example**:
+```
+[STATUS] ⚠️ Parameter Schema Validation Complete
+
+Service: notify.telegram
+Validation: WARN
+
+Required Parameters:
+✅ message (string)
+
+Optional Parameters:
+✅ target (list)
+✅ title (string)
+✅ data (dict)
+
+Parameter Issues:
+⚠️ Unknown parameter: 'targets'
+   → Expected: 'target' (list of chat IDs)
+   → Provided: 'targets' (unknown)
+   → Action: Use 'target' instead of 'targets'
+
+[STATUS] Review parameter naming before calling service.
+```
+
+**Error Example**:
+```
+[STATUS] 🚨 Parameter Schema Validation Complete
+
+Service: light.turn_on
+Validation: FAIL
+
+Required Parameters:
+✅ entity_id (string or list)
+
+Parameter Issues:
+🚨 Missing required parameter
+   → Parameter: entity_id
+   → Expected: Entity ID to turn on
+   → Provided: (not provided)
+   → Action: Add 'entity_id' parameter
+
+[STATUS] Missing required parameters. Add before calling service.
+```
+
+**Parameters**:
+- `service_domain`: Service domain
+- `service_name`: Service name
+- `provided_parameters`: Parameters to validate (dict format)
+
+**Usage Examples**:
+```yaml
+# Validate parameters
+parameter_validation(
+  service_domain: "notify",
+  service_name: "telegram",
+  provided_parameters: {
+    "message": "Test",
+    "target": ["-123456789"]
+  }
+)
+
+# Validate without parameters
+parameter_validation(
+  service_domain: "light",
+  service_name: "turn_on"
+)
+```

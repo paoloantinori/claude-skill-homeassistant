@@ -1,0 +1,209 @@
+# Workflow: Service Call Diagnosis
+
+**Purpose**: Diagnose service call failures and provide fixes
+
+**When to use**: Service call failed, troubleshooting errors
+
+**Timeout**: 45 seconds (error analysis + service check + parameter check + diagnosis)
+
+**Steps**:
+```yaml
+1. analyze_error:
+    input: "error_message"
+    identify:
+      - error_type
+      - root_cause
+      - affected_component
+    timeout: 10
+
+2. check_service_existence:
+    workflow: "service_existence_check"
+    timeout: 15
+
+3. check_parameters:
+    workflow: "parameter_schema_validation"
+    timeout: 20
+
+4. generate_diagnosis:
+    combine: "error_analysis + service_check + parameter_check"
+    provide:
+      - root_cause
+      - fix_recommendations
+      - example_correct_call
+    timeout: 10
+
+5. report:
+    format: "diagnosis_report"
+    include:
+      - error_summary
+      - root_cause
+      - fix_steps
+      - corrected_example
+```
+
+**Output Template**:
+```
+[STATUS] {{emoji}} Service Call Diagnosis Complete
+
+Error: {{error_message}}
+
+Root Cause:
+{{root_cause_description}}
+
+{{#if service_not_found}}
+Service Issue:
+🔍 Service not found: {{provided_service}}
+   → Expected: {{correct_service}}
+   → Similar: {{similar_services}}
+{{/if}}
+
+{{#if parameter_error}}
+Parameter Issue:
+🔍 {{parameter_error}}
+   → Parameter: {{parameter}}
+   → Expected: {{expected}}
+   → Provided: {{provided}}
+{{/if}}
+
+{{#if entity_error}}
+Entity Issue:
+🔍 Entity not found: {{entity_id}}
+   → Action: Check entity exists or fix entity ID
+{{/if}}
+
+Fix Steps:
+{{#each step}}
+{{num}}. {{step}}
+{{/each}}
+
+Corrected Example:
+```yaml
+service: {{correct_service}}
+data:
+{{#each corrected_parameter}}
+  {{name}}: {{value}}
+{{/each}}
+```
+
+[STATUS] {{closing_message}}
+```
+
+**Service Not Found Example**:
+```
+[STATUS] 🚨 Service Call Diagnosis Complete
+
+Error: Service not found: notify.teegram
+
+Root Cause:
+🔍 Typo in service domain name
+   → Expected: notify.telegram
+   → Provided: notify.teegram
+
+Service Issue:
+🔍 Service not found: notify.teegram
+   → Expected: notify.telegram
+   → Similar: notify.telegram, notify.email, notify.mobile_app
+
+Fix Steps:
+1. Correct service domain from 'teegram' to 'telegram'
+2. Verify Telegram integration is configured
+3. Test service call again
+
+Corrected Example:
+```yaml
+service: notify.telegram
+data:
+  message: "Test message"
+```
+
+[STATUS] Service call diagnosed with fix recommendations.
+```
+
+**Parameter Error Example**:
+```
+[STATUS] 🚨 Service Call Diagnosis Complete
+
+Error: Invalid parameter: 'targets'
+
+Root Cause:
+🔍 Unknown parameter name
+   → Provided: 'targets'
+   → Expected: 'target'
+
+Parameter Issue:
+🔍 Parameter 'targets' not recognized by notify.telegram
+   → Expected: 'target' (list of chat IDs)
+   → Provided: 'targets' (unknown parameter)
+
+Fix Steps:
+1. Rename parameter from 'targets' to 'target'
+2. Ensure value is a list of chat IDs
+3. Test service call again
+
+Corrected Example:
+```yaml
+service: notify.telegram
+data:
+  message: "Test"
+  target: ["-123456789"]
+```
+
+[STATUS] Service call diagnosed with fix recommendations.
+```
+
+**Entity Not Found Example**:
+```
+[STATUS] 🚨 Service Call Diagnosis Complete
+
+Error: Entity not found: light.living_rom_lamp
+
+Root Cause:
+🔍 Typo in entity ID
+   → Provided: light.living_rom_lamp
+   → Expected: light.living_room_lamp
+
+Entity Issue:
+🔍 Entity not found: light.living_rom_lamp
+   → Action: Check entity exists or fix entity ID
+   → Similar: light.living_room_lamp, light.living_room
+
+Fix Steps:
+1. Check entity ID spelling
+2. Verify entity exists: hass-cli state list | grep light
+3. Use correct entity ID
+
+Corrected Example:
+```yaml
+service: light.turn_on
+data:
+  entity_id: light.living_room_lamp
+```
+
+[STATUS] Service call diagnosed with fix recommendations.
+```
+
+**Parameters**:
+- `error_message`: Error message from failed service call
+- `service_domain`: Service domain (if known)
+- `service_name`: Service name (if known)
+- `parameters`: Parameters used (if known)
+
+**Usage Examples**:
+```yaml
+# Diagnose service not found error
+diagnosis(
+  error_message: "Service not found: notify.teegram"
+)
+
+# Diagnose parameter error
+diagnosis(
+  error_message: "Invalid parameter: 'targets'",
+  service_domain: "notify",
+  service_name: "telegram"
+)
+
+# Diagnose entity error
+diagnosis(
+  error_message: "Entity not found: light.unknown_light"
+)
+```

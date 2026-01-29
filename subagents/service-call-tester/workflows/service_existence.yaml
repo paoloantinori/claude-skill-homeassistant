@@ -1,0 +1,128 @@
+# Workflow: Service Existence Check
+
+**Purpose**: Verify services exist and are registered in Home Assistant
+
+**When to use**: Before using a service, troubleshooting service not found errors
+
+**Timeout**: 15 seconds (list services + verify existence)
+
+**Steps**:
+```yaml
+1. list_services:
+    command: "source .env && hass-cli service list"
+    timeout: 10
+    parse_services: true
+
+2. verify_service:
+    check: "{{service_domain}}.{{service_name}}"
+    exists_in: "service_list"
+    timeout: 5
+
+3. find_similar:
+    if: "service_not_found"
+    then:
+        search: "similar_services"
+        pattern: "{{service_domain}}.*"
+        timeout: 5
+
+4. report:
+    format: "service_existence_report"
+    include:
+      - service_exists
+      - service_domain
+      - service_name
+      - similar_services
+      - alternatives
+```
+
+**Output Template**:
+```
+[STATUS] {{emoji}} Service Existence Check Complete
+
+Service: {{service_domain}}.{{service_name}}
+Status: {{status}} (EXISTS|NOT_FOUND)
+
+{{#if exists}}
+✅ Service is registered and available
+
+Similar Services:
+{{#each similar}}
+- {{service}}
+{{/each}}
+{{/if}}
+
+{{#if not_exists}}
+🚨 Service not found
+
+Similar Services in {{service_domain}}:
+{{#each similar}}
+- {{service}}
+{{/each}}
+
+Suggestions:
+→ Check service domain spelling
+→ Verify integration is loaded
+→ Use hass-cli service list to see available services
+{{/if}}
+
+[STATUS] {{closing_message}}
+```
+
+**Success Example**:
+```
+[STATUS] ✅ Service Existence Check Complete
+
+Service: automation.trigger
+Status: EXISTS
+
+✅ Service is registered and available
+
+Similar Services:
+- automation.reload
+- automation.turn_on
+- automation.turn_off
+
+[STATUS] Service is registered and available.
+```
+
+**Not Found Example**:
+```
+[STATUS] 🚨 Service Existence Check Complete
+
+Service: notify.teegram
+Status: NOT_FOUND
+
+🚨 Service not found
+
+Similar Services in notify:
+- notify.telegram
+- notify.email
+- notify.mobile_app
+
+Suggestions:
+→ Check service domain spelling (did you mean notify.telegram?)
+→ Verify Telegram integration is loaded
+→ Use hass-cli service list to see available services
+
+[STATUS] Service not found. Check spelling and integration.
+```
+
+**Parameters**:
+- `service_domain`: Service domain (e.g., automation, notify, light)
+- `service_name`: Service name (e.g., trigger, send_message, turn_on)
+- `find_similar`: Whether to find similar services (default: true)
+
+**Usage Examples**:
+```yaml
+# Check if service exists
+service_existence(
+  service_domain: "automation",
+  service_name: "trigger"
+)
+
+# Check notify service
+service_existence(
+  service_domain: "notify",
+  service_name: "telegram"
+)
+```

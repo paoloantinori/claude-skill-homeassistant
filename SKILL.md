@@ -622,6 +622,109 @@ Validation Results:
 
 ---
 
+### Service Call Tester
+
+**Location**: `.claude/skills/home-assistant-manager/subagents/service-call-tester/` (skill-embedded)
+
+**Purpose**: Test Home Assistant service calls in isolation with parameter validation, response checking, and error diagnosis
+
+**Triggers** (auto-delegates to service call tester):
+- Keywords: "test service call", "validate service", "check service", "service call failed", "service parameters"
+- Context: Before executing service calls, service call returned error, troubleshooting service issues
+- Explicit: "Test this service call", "Validate service parameters", "Diagnose service error"
+
+**Workflows**:
+- **Service Existence Check**: Verify services exist and are registered (15s timeout)
+  - List services → Verify service exists → Find similar services
+  - Returns: Service existence status with alternatives
+
+- **Parameter Schema Validation**: Validate service parameters against schema (20s timeout)
+  - Fetch service schema → Validate parameters → Check types
+  - Returns: Parameter validation results with errors and fixes
+
+- **Dry-Run Service Call**: Test service call without executing (25s timeout)
+  - Service existence → Parameter validation → Simulate call → Assess risk
+  - Returns: Validation status with risk assessment and safe-to-execute
+
+- **Execute Service Call (Read-Only)**: Execute read-only services for testing (20s timeout)
+  - Validate read-only → Execute service → Validate response
+  - Returns: Service call result with execution time
+
+- **Service Call Diagnosis**: Diagnose service call failures (45s timeout)
+  - Analyze error → Check service → Check parameters → Generate diagnosis
+  - Returns: Root cause with fix steps and corrected example
+
+**Example usage**:
+```bash
+# Check if service exists
+$ "Does the notify.telegram service exist?"
+# Delegates to service-call-tester for existence check
+
+# Validate service parameters
+$ "Validate parameters for automation.trigger"
+# Delegates for parameter validation
+
+# Test service call safely
+$ "Test this service call in isolation"
+# Delegates for dry-run validation
+
+# Diagnose service error
+$ "Why did this service call fail?"
+# Delegates for error diagnosis
+```
+
+**Output format**:
+```
+[STATUS] ✅ Service Existence Check Complete
+
+Service: automation.trigger
+Status: EXISTS
+
+✅ Service is registered and available
+
+Similar Services:
+- automation.reload
+- automation.turn_on
+- automation.turn_off
+
+[STATUS] Service is registered and available.
+```
+
+**Key features**:
+- **Service existence verification**: Confirms services are registered
+- **Parameter schema validation**: Validates parameters against service schemas
+- **Dry-run testing**: Validates without executing (risk assessment)
+- **Read-only execution**: Safe testing of read-only services
+- **Error diagnosis**: Root cause analysis with fix recommendations
+- **Safety enforcement**: Tests in isolation, validates before execution
+
+**Service call patterns**:
+- **Service not found**: Typos, integration not loaded, incorrect format
+- **Invalid parameters**: Missing required, extra parameters, wrong types
+- **Entity not found**: Typos, deleted entities, wrong domains
+- **Permission denied**: Requires admin, protected entities
+- **Service timeout**: Device not responding, network issues
+- **Invalid entity ID format**: Missing domain, wrong separator
+- **Template errors**: Invalid Jinja2 syntax, undefined variables
+- **No data returned**: Service completed silently, check logs
+
+**Safety rules** (inherited from HA Manager skill):
+- **Test in isolation first**: Never test in production without isolation
+- **Use hass-cli**: NEVER curl for HA API
+- **Validate before execute**: Always dry-run state-changing services
+- **Read-only by default**: Never execute state-changing without explicit permission
+- **Use timeouts**: All service calls must have timeouts
+
+**Integration with other subagents**:
+- **Config Validator**: Validates service calls in YAML configurations
+- **Automation Verifier**: Tests service calls within automations
+- **HA Log Analyzer**: Service call error diagnosis
+- **Deployment Orchestrator**: Service call testing during deployment
+
+**See also**: `.claude/skills/home-assistant-manager/subagents/service-call-tester/PROMPT.md` for complete subagent documentation
+
+---
+
 ## Troubleshooting
 
 **If something goes wrong:**
