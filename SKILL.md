@@ -207,11 +207,11 @@ This skill delegates specialized tasks to subagents for efficiency and expertise
 | Task Type | → Delegate To | Trigger Words |
 |-----------|---------------|---------------|
 | **Log analysis** | `ha-log-analyzer` | "check logs", "analyze logs", "errors", "debug", "what happened" |
-| **Automation logic verification** | `automation-verifier` | "test automation", "verify logic", "did it fire?", "automation not working" |
-| **Config validation** | `config-validator` | "validate", "check syntax", "will this work?" |
-| **Deployment to HA server** | `deployment-orchestrator` | "deploy", "scp", "git push", "reload" |
-| **Lovelace/dashboard** | `lovelace-dashboard-tester` | "dashboard", "lovelace", "UI", "card" |
-| **Service call testing** | `service-call-tester` | "test service call", "call service", "trigger" |
+| **Automation logic verification** | `ha-automation-verifier` | "test automation", "verify logic", "did it fire?", "automation not working" |
+| **Config validation** | `ha-config-validator` | "validate", "check syntax", "will this work?" |
+| **Deployment to HA server** | `ha-deployment-orchestrator` | "deploy", "scp", "git push", "reload" |
+| **Lovelace/dashboard** | `ha-lovelace-dashboard-tester` | "dashboard", "lovelace", "UI", "card" |
+| **Service call testing** | `ha-service-call-tester` | "test service call", "call service", "trigger" |
 
 ### 🚨 MANDATORY: Subagent Delegation Flow
 
@@ -272,15 +272,21 @@ MISSED: Should use deployment-orchestrator
 | User Request | Correct Action | Wrong Action |
 |--------------|----------------|--------------|
 | "Check logs for errors" | Delegate to `ha-log-analyzer` | Run `grep` directly ❌ |
-| "Test automation X" | Delegate to `automation-verifier` | Manually trigger ❌ |
-| "Deploy changes" | Delegate to `deployment-orchestrator` | Run `scp` directly ❌ |
-| "Validate config" | Delegate to `config-validator` | Run `ha core check` directly ❌ |
+| "Test automation X" | Delegate to `ha-automation-verifier` | Manually trigger ❌ |
+| "Deploy changes" | Delegate to `ha-deployment-orchestrator` | Run `scp` directly ❌ |
+| "Validate config" | Delegate to `ha-config-validator` | Run `ha core check` directly ❌ |
+| "Test dashboard" | Delegate to `ha-lovelace-dashboard-tester` | Edit without testing ❌ |
+| "Test service call" | Delegate to `ha-service-call-tester` | Run service call directly ❌ |
 
 ### HA Log Analyzer
 
-**Location**: `.claude/skills/home-assistant-manager/subagents/ha-log-analyzer/` (skill-embedded)
+**Location**: `.claude/agents/ha-log-analyzer.md` (real Claude Code subagent)
 
 **Purpose**: Monitor Home Assistant logs for errors, warnings, and automation execution traces
+
+**Auto-Discovery**: This subagent is auto-discovered by Claude Code at session start. It can be invoked via:
+- Auto-delegation when task matches description
+- Manual: "Use the ha-log-analyzer subagent to check logs"
 
 **Triggers** (auto-delegates to log analyzer):
 - Keywords: "check logs", "log errors", "analyze logs", "automation fired?", "startup issues"
@@ -330,15 +336,19 @@ Errors: 0 | Warnings: 0 | Time: 14:32:18
 - **hass-cli preferred**: Use `hass-cli`, never curl
 - **Exit cleanly**: Never block waiting for user input
 
-**See also**: `.claude/skills/home-assistant-manager/subagents/ha-log-analyzer/PROMPT.md` for complete subagent documentation
+**See also**: `.claude/agents/ha-log-analyzer.md` for complete subagent documentation
 
 ---
 
 ### Automation Verifier
 
-**Location**: `.claude/skills/home-assistant-manager/subagents/automation-verifier/` (skill-embedded)
+**Location**: `.claude/agents/ha-automation-verifier.md` (real Claude Code subagent)
 
 **Purpose**: End-to-end testing and verification of automation changes with comprehensive validation
+
+**Auto-Discovery**: This subagent is auto-discovered by Claude Code at session start. It can be invoked via:
+- Auto-delegation when task matches description
+- Manual: "Use the ha-automation-verifier subagent to test automation"
 
 **Triggers** (auto-delegates to automation verifier):
 - Keywords: "test automation", "verify automation", "automation working?", "did it work?"
@@ -406,15 +416,19 @@ Step-by-Step Results:
 - **Use timeouts**: All monitoring commands have timeouts
 - **Exit cleanly**: Never block waiting for user input
 
-**See also**: `.claude/skills/home-assistant-manager/subagents/automation-verifier/PROMPT.md` for complete subagent documentation
+**See also**: `.claude/agents/ha-automation-verifier.md` for complete subagent documentation
 
 ---
 
 ### Config Validator
 
-**Location**: `.claude/skills/home-assistant-manager/subagents/config-validator/` (skill-embedded)
+**Location**: `.claude/agents/ha-config-validator.md` (real Claude Code subagent)
 
 **Purpose**: Pre-deployment configuration validation to catch errors before they reach production
+
+**Auto-Discovery**: This subagent is auto-discovered by Claude Code at session start. It can be invoked via:
+- Auto-delegation when task matches description
+- Manual: "Use the ha-config-validator subagent to validate"
 
 **Triggers** (auto-delegates to config validator):
 - Keywords: "validate config", "check before deploy", "config errors", "is this valid?", "safe to deploy?"
@@ -498,15 +512,19 @@ Validation Results:
 - **Post-deployment**: Automation Verifier validates AFTER deployment
 - **Complete lifecycle**: Validate → Deploy → Verify
 
-**See also**: `.claude/skills/home-assistant-manager/subagents/config-validator/PROMPT.md` for complete subagent documentation
+**See also**: `.claude/agents/ha-config-validator.md` for complete subagent documentation
 
 ---
 
 ### Deployment Orchestrator
 
-**Location**: `.claude/skills/home-assistant-manager/subagents/deployment-orchestrator/` (skill-embedded)
+**Location**: `.claude/agents/ha-deployment-orchestrator.md` (real Claude Code subagent)
 
 **Purpose**: Automate deployment workflow decisions and execution for Home Assistant configuration changes
+
+**Auto-Discovery**: This subagent is auto-discovered by Claude Code at session start. It can be invoked via:
+- Auto-delegation when task matches description
+- Manual: "Use the ha-deployment-orchestrator subagent to deploy"
 
 **Triggers** (auto-delegates to deployment orchestrator):
 - Keywords: "deploy to ha", "deploy changes", "git deployment", "scp deployment", "sync to server", "deployment status"
@@ -597,13 +615,17 @@ Deployment Steps:
 - **HA Log Analyzer**: Deployment Orchestrator deploys → HA Log Analyzer checks logs
 - **Complete lifecycle**: Validate (Config Validator) → Deploy (Deployment Orchestrator) → Verify (Automation Verifier) → Check Logs (HA Log Analyzer)
 
-**See also**: `.claude/skills/home-assistant-manager/subagents/deployment-orchestrator/PROMPT.md` for complete subagent documentation
+**See also**: `.claude/agents/ha-deployment-orchestrator.md` for complete subagent documentation
 
 ---
 
 ### Lovelace Dashboard Tester
 
-**Location**: `.claude/skills/home-assistant-manager/subagents/lovelace-dashboard-tester/` (skill-embedded)
+**Location**: `.claude/agents/ha-lovelace-dashboard-tester.md` (real Claude Code subagent)
+
+**Auto-Discovery**: This subagent is auto-discovered by Claude Code at session start. It can be invoked via:
+- Auto-delegation when task matches description
+- Manual: "Use the ha-lovelace-dashboard-tester subagent to validate dashboard"
 
 **Purpose**: Validate and test Lovelace dashboard configurations with comprehensive JSON validation, entity verification, and card configuration checks
 
@@ -694,15 +716,19 @@ Validation Results:
 - **HA Log Analyzer**: Checks logs for dashboard load errors
 - **Note**: Dashboards don't require restart, just browser refresh
 
-**See also**: `.claude/skills/home-assistant-manager/subagents/lovelace-dashboard-tester/PROMPT.md` for complete subagent documentation
+**See also**: `.claude/agents/ha-lovelace-dashboard-tester.md` for complete subagent documentation
 
 ---
 
 ### Service Call Tester
 
-**Location**: `.claude/skills/home-assistant-manager/subagents/service-call-tester/` (skill-embedded)
+**Location**: `.claude/agents/ha-service-call-tester.md` (real Claude Code subagent)
 
 **Purpose**: Test Home Assistant service calls in isolation with parameter validation, response checking, and error diagnosis
+
+**Auto-Discovery**: This subagent is auto-discovered by Claude Code at session start. It can be invoked via:
+- Auto-delegation when task matches description
+- Manual: "Use the ha-service-call-tester subagent to test service call"
 
 **Triggers** (auto-delegates to service call tester):
 - Keywords: "test service call", "validate service", "check service", "service call failed", "service parameters"
@@ -797,7 +823,7 @@ Similar Services:
 - **HA Log Analyzer**: Service call error diagnosis
 - **Deployment Orchestrator**: Service call testing during deployment
 
-**See also**: `.claude/skills/home-assistant-manager/subagents/service-call-tester/PROMPT.md` for complete subagent documentation
+**See also**: `.claude/agents/ha-service-call-tester.md` for complete subagent documentation
 
 ---
 
