@@ -155,3 +155,42 @@ hass-cli service call input_boolean.reload
 | Add new platform | ❌ No | ✅ Yes |
 
 **When in doubt:** Check `docs/01_critical_safety.md` for full decision tree.
+
+---
+
+## Ghost Entity Investigation (Spook Warnings)
+
+When Spook Integration reports "unknown entities" in dashboards:
+
+```bash
+# Step 1: Verify entity exists on server (NOT local files)
+source .env && hass-cli state list | grep entity_id
+
+# Step 2: If exists, check if used in automations
+grep -r "entity_id" automations/
+
+# Step 3: Decision matrix:
+# - Exists + used in automation → Keep dashboard reference (Spook may be wrong)
+# - Not in hass-cli state list → Remove from dashboard (truly missing)
+# - Defined in YAML but not loaded → May need restart
+```
+
+**Remember:**
+- Trust `hass-cli state list` (server state) over local file searches
+- `!include_dir_merge_named` loads from FOLDER, not single files
+- Spook warnings are hints to investigate, not verdicts to delete
+
+**Example:**
+```bash
+# Spook says: input_boolean.segnala_chiara_ripartita unknown
+
+# Verify exists:
+$ source .env && hass-cli state list | grep segnala_chiara
+input_boolean.segnala_chiara_ripartita    on    # EXISTS!
+
+# Check usage:
+$ grep -r "segnala_chiara_ripartita" automations/
+automations/location/location.yaml:    # Used by automation
+
+# Conclusion: Keep dashboard reference, entity is functional
+```

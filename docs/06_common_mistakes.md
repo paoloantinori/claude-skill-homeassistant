@@ -486,6 +486,7 @@ hass-cli service call input_boolean.reload
 
 | Mistake | Prevention |
 |---------|------------|
+| Assumed file location without checking configuration.yaml | ALWAYS check configuration.yaml first to understand includes |
 | Git pull conflicts | Always `git diff` before `git checkout` |
 | SCP + Git conflicts | Track scp files, checkout before pull |
 | Wrong paths | Use `ha:` alias, verify paths |
@@ -745,3 +746,149 @@ $ hass-cli state get --help
 $ hass-cli state list | grep automation
 # Success! Then document this pattern.
 ```
+
+---
+
+## Mistake 17: Using `hass-cli state set` (Command Doesn't Exist)
+
+**Symptom:** `Error: No such command 'set'`
+
+**What happened:**
+- Tried to set an input_number/input_boolean value using `hass-cli state set`
+- The `state` subcommand doesn't have a `set` command
+- Need to use service calls instead
+
+**❌ WRONG:**
+```bash
+$ hass-cli state set input_number.batteria_telefono_chiara_scarico 20
+Error: No such command 'set'
+# Then tries curl or other workarounds...
+```
+
+**✅ CORRECT:**
+```bash
+# Use service call to set input_number value
+$ hass-cli service call input_number.set_value --arguments entity_id=input_number.batteria_telefono_chiara_scarico,value=20
+
+# Or for input_boolean
+$ hass-cli service call input_boolean.turn_on --arguments entity_id=input_boolean.example
+
+# For other entity types, check the domain's services
+$ hass-cli state list | grep input_number  # List available input_number entities
+```
+
+**Common entity state change patterns:**
+
+| Entity Type | Service Call Example |
+|-------------|---------------------|
+| input_number | `hass-cli service call input_number.set_value --arguments entity_id=input_number.x,value=10` |
+| input_boolean | `hass-cli service call input_boolean.turn_on --arguments entity_id=input_boolean.x` |
+| input_select | `hass-cli service call input_select.select_option --arguments entity_id=input_select.x,option="Option1"` |
+| input_text | `hass-cli service call input_text.set_value --arguments entity_id=input_text.x,value="text"` |
+| counter | `hass-cli service call counter.increment --arguments entity_id=counter.x` |
+| timer | `hass-cli service call timer.start --arguments entity_id=timer.x` |
+
+**Prevention:**
+- Remember: `state get` and `state list` are for READING, not WRITING
+- To change entity state, use `service call <domain>.<service>`
+- Check available services: `hass-cli service list | grep input_number`
+- When unsure, run `hass-cli --help` to see available commands
+
+**Recovery:**
+```bash
+# After "No such command" error:
+$ hass-cli state --help  # See available state commands (get, list, edit - no 'set')
+
+# Then find the correct service:
+$ hass-cli service list | grep -E "input_number|set_value"
+
+# Use the service:
+$ hass-cli service call input_number.set_value --help  # Check parameters
+$ hass-cli service call input_number.set_value --arguments entity_id=xxx,value=20
+```
+
+---
+
+## Mistake 18: Assuming "Ghost Entity" Means Entity Doesn't Exist
+
+**Symptom:** Spook reports "ghost" entities in dashboards, you assume they're broken and remove them
+
+**What happened:**
+- Spook Integration reports entities as "unknown to Home Assistant"
+- You assume the entities are missing/broken without verifying
+- Removed dashboard references to working entities
+- Broke functional automations that depend on those entities
+
+**Root Cause:**
+- "Ghost" in Spook means "referenced in dashboard but Spook can't find it"
+- This can mean: (a) entity doesn't exist, OR (b) entity exists but Spook's scan missed it, OR (c) entity is loaded from YAML on next restart
+- Local `.storage/` grep may not reflect server state
+
+**❌ WRONG:**
+```bash
+# Spook says: "input_boolean.segnala_chiara_ripartita is unknown"
+# Immediately assume it doesn't exist and remove from dashboard
+
+# Check local storage (not server)
+$ grep -r "segnala_chiara_ripartita" .storage/
+# No results locally → conclude entity missing
+
+# Remove from dashboard → break automation
+```
+
+**✅ CORRECT:**
+```bash
+# FIRST: Verify entity exists on RUNNING HA server
+$ source .env && hass-cli state list | grep segnala_chiara_ripartita
+input_boolean.segnala_chiara_ripartita    Segnala quando Chiara riparte    on
+
+# Entity EXISTS! Check if automation uses it
+$ grep -r "segnala_chiara_ripartita" automations/
+# Found: automations/location/location.yaml - chiara_ripartita automation
+
+# Conclusion: Dashboard reference is VALID, entity is functional
+# Spook may have stale cache or timing issue
+```
+
+**Investigation Pattern for "Ghost" Entities:**
+
+| Step | Command | Purpose |
+|------|---------|---------|
+| 1. Verify existence | `source .env && hass-cli state list \| grep entity_id` | Does entity exist on server? |
+| 2. Check automations | `grep -r entity_id automations/` | Is it actively used? |
+| 3. Check YAML config | `grep -r entity_id input_boolean/` | Is it defined in YAML? |
+| 4. Decision | - | If exists + used → keep; if truly missing → fix |
+
+**Decision Matrix:**
+
+| Entity State | Dashboard Action |
+|--------------|------------------|
+| Exists in `hass-cli state list` | ✅ Keep dashboard reference |
+| Used in automations | ✅ Keep dashboard reference |
+| Not in `hass-cli state list` | ❌ Remove from dashboard |
+| Defined in YAML but not loaded | May need restart or reload |
+
+**Why local grep is unreliable:**
+- Local `.storage/` files are copies from git pull
+- Server state is authoritative (what HA actually runs)
+- Entity may be loaded from YAML folder, not single file
+- Spook scans may have timing issues or stale caches
+
+**Prevention:**
+- **ALWAYS** verify entity existence with `hass-cli state list` FIRST
+- Trust server state over local files or Spook warnings
+- Check automation dependencies before removing dashboard references
+- Remember: `!include_dir_merge_named input_boolean` loads from FOLDER, not `input_boolean.yaml`
+
+**Example: The `input_boolean.yaml` confusion:**
+```yaml
+# In configuration.yaml:
+input_boolean: !include_dir_merge_named input_boolean  # Loads from folder/
+
+# This means:
+# - input_boolean/location.yaml gets loaded ✅
+# - input_boolean.yaml (root file) gets IGNORED ❌
+# - Entities defined in folder/ are created on HA start/restart
+```
+
+**Key takeaway:** Spook's "ghost" warning is a hint to investigate, not a verdict to delete. Always verify with `hass-cli state list` before removing dashboard references.
