@@ -52,6 +52,7 @@ Expert-level Home Assistant configuration management with efficient workflows, r
 
 **1. NEVER RESTART WITHOUT ASKING** → See [docs/01_critical_safety.md](docs/01_critical_safety.md)
 **2. ALWAYS use hass-cli, NEVER curl** → See [docs/07_remote_access.md](docs/07_remote_access.md)
+**3. ALWAYS check configuration.yaml FIRST for file organization** → See [docs/10_file_organization.md](docs/10_file_organization.md)
 
 ### Quick Rule Reference
 
@@ -164,6 +165,7 @@ See **[docs/06_common_mistakes.md](docs/06_common_mistakes.md)** for patterns.
 
 | Task | Command |
 |------|---------|
+| Check file organization | `grep -A 2 "input_boolean:" configuration.yaml` |
 | Validate config | `ssh ha "ha core check"` |
 | Reload automations | `hass-cli service call automation.reload` |
 | Reload scripts | `hass-cli service call script.reload` |
@@ -196,6 +198,26 @@ See **[docs/06_common_mistakes.md](docs/06_common_mistakes.md)** for patterns.
 | Templates | `templates/` |
 | Dashboards | `.storage/lovelace.*` |
 
+## Utility Scripts
+
+Python helper scripts for advanced Home Assistant management tasks. Each script has a corresponding agent for full documentation.
+
+| Script | Purpose | Agent | Quick Start |
+|--------|---------|-------|-------------|
+| `ha_entity_metadata.py` | Bulk assign labels, icons, areas | `ha-entity-metadata` | `python3 scripts/ha_entity_metadata.py stats` |
+| `ha_expose_entities.py` | Expose/unexpose to conversation agent | `ha-conversation-exposure` | `python3 scripts/ha_expose_entities.py list` |
+| `ha_backup_registry.py` | Registry backups and restore | `ha-registry-backup` | `python3 scripts/ha_backup_registry.py backup` |
+| `ha_migrate_automation_ids.py` | Safe automation ID migration | `ha-automation-id-migration` | `python3 scripts/ha_migrate_automation_ids.py generate` |
+| `fix_automation_registry.py` | Fix `_2` duplicates (simple) | `ha-automation-id-migration` | Run via SSH on HA server |
+
+**Script location**: `.claude/skills/home-assistant-manager/scripts/`
+
+**Common workflows**:
+- **Add metadata to automations**: `stats` → `export` → edit → `apply --dry-run` → `apply`
+- **Expose entities for voice control**: `list` → `expose <entity>` → `check <entity>`
+- **Backup before migration**: `backup` → [make changes] → `restore <timestamp>` if needed
+- **Migrate automation IDs**: `generate` → edit → `preview` → update YAML → `execute`
+
 ## Subagent Delegation
 
 This skill delegates specialized tasks to subagents for efficiency and expertise.
@@ -208,10 +230,15 @@ This skill delegates specialized tasks to subagents for efficiency and expertise
 |-----------|---------------|---------------|
 | **Log analysis** | `ha-log-analyzer` | "check logs", "analyze logs", "errors", "debug", "what happened" |
 | **Automation logic verification** | `ha-automation-verifier` | "test automation", "verify logic", "did it fire?", "automation not working" |
-| **Config validation** | `ha-config-validator` | "validate", "check syntax", "will this work?" |
+| **YAML validation** | `ha-yaml-validator` | "validate yaml", "check yaml", "yaml syntax", "is this valid?" |
+| **Config validation** | `ha-config-validator` | "validate config", "check config", "will this work?", "safe to deploy?" |
 | **Deployment to HA server** | `ha-deployment-orchestrator` | "deploy", "scp", "git push", "reload" |
 | **Lovelace/dashboard** | `ha-lovelace-dashboard-tester` | "dashboard", "lovelace", "UI", "card" |
 | **Service call testing** | `ha-service-call-tester` | "test service call", "call service", "trigger" |
+| **Entity metadata management** | `ha-entity-metadata` | "manage metadata", "set labels", "assign icons", "set areas", "export metadata" |
+| **Conversation agent exposure** | `ha-conversation-exposure` | "expose entities", "unexpose entities", "conversation agent", "voice control" |
+| **Registry backup/restore** | `ha-registry-backup` | "backup registry", "restore registry", "list backups", "clean backups" |
+| **Automation ID migration** | `ha-automation-id-migration` | "migrate automation ids", "fix _2 duplicates", "automation id migration", "restore metadata" |
 
 ### 🚨 MANDATORY: Subagent Delegation Flow
 
@@ -273,6 +300,7 @@ MISSED: Should use deployment-orchestrator
 |--------------|----------------|--------------|
 | "Check logs for errors" | Delegate to `ha-log-analyzer` | Run `grep` directly ❌ |
 | "Test automation X" | Delegate to `ha-automation-verifier` | Manually trigger ❌ |
+| "Validate YAML file" | Delegate to `ha-yaml-validator` | Use python yaml.safe_load ❌ |
 | "Deploy changes" | Delegate to `ha-deployment-orchestrator` | Run `scp` directly ❌ |
 | "Validate config" | Delegate to `ha-config-validator` | Run `ha core check` directly ❌ |
 | "Test dashboard" | Delegate to `ha-lovelace-dashboard-tester` | Edit without testing ❌ |
@@ -513,6 +541,111 @@ Validation Results:
 - **Complete lifecycle**: Validate → Deploy → Verify
 
 **See also**: `.claude/agents/ha-config-validator.md` for complete subagent documentation
+
+---
+
+### YAML Validator
+
+**Location**: `.claude/agents/ha-yaml-validator.md` (real Claude Code subagent)
+
+**Purpose**: Validate Home Assistant YAML files with full support for HA-specific tags (!secret, !include, etc.) and syntax extensions
+
+**Auto-Discovery**: This subagent is auto-discovered by Claude Code at session start. It can be invoked via:
+- Auto-delegation when task matches description
+- Manual: "Use the ha-yaml-validator subagent to validate"
+
+**Triggers** (auto-delegates to YAML validator):
+- Keywords: "validate yaml", "check yaml", "yaml syntax", "is this valid yaml?"
+- Context: Before deployment, after editing YAML files, when standard YAML validators fail
+- Explicit: "Validate this YAML file", "Check YAML syntax with HA tags"
+
+**Workflows**:
+- **Single File Validation** (20s timeout): Validate one YAML file with HA tag support
+  - Read file → Count HA tags → Parse with custom constructors → Return structure info
+  - Returns: File validity, structure analysis, HA tag counts
+
+- **Multi-File Validation** (60s timeout): Validate multiple files at once
+  - Identify files → Validate each → Aggregate results → Return summary
+  - Returns: Overall status, per-file results, aggregated tag counts
+
+- **Pre-Deployment Check** (45s timeout): Comprehensive validation before deployment
+  - Get git status → Validate changed files → Return deployment readiness
+  - Returns: Deployment readiness, file-by-file status, warnings
+
+**Example usage**:
+```bash
+# Validate single file
+$ "Validate automations/tests/tests.yaml"
+# Delegates to ha-yaml-validator
+
+# Validate all changed files
+$ "Check all changed YAML files"
+# Delegates for multi-file validation
+
+# Pre-deployment check
+$ "Validate YAML before deploying"
+# Delegates for comprehensive check
+```
+
+**Output format:**
+```
+[STATUS] ✅ YAML Validation Complete
+
+File: automations/tests/tests.yaml
+Status: VALID
+
+Structure:
+- Root type: list
+- Items: 9 automations
+
+HA Tags Found:
+- !secret: 1 occurrence
+
+[STATUS] File is valid YAML with HA extensions.
+```
+
+**Key features**:
+- **HA tag support**: Handles !secret, !include, !include_dir_*, !env_var, !lambda
+- **Custom constructors**: Registers YAML constructors for HA-specific tags
+- **Structure analysis**: Reports root type (list/mapping), item counts, structure type
+- **Tag reporting**: Counts all HA tags found in files
+- **Multi-file mode**: Validates all changed files via git status
+- **JSON output**: Machine-readable format for automation
+
+**HA tags supported:**
+| Tag | Purpose | Example |
+|-----|---------|---------|
+| `!secret` | Secret references | `!secret telegram_chat_paolo` |
+| `!include` | File inclusion | `!include scripts/automation.yaml` |
+| `!include_dir_list` | Directory listing | `!include_dir_list automations/` |
+| `!include_dir_merge_list` | Merged directory list | `!include_dir_merge_list scripts/` |
+| `!include_dir_merge_named` | Merged directory named | `!include_dir_merge_named packages/` |
+| `!env_var` | Environment variables | `!env_var API_KEY` |
+| `!lambda` | YAML script alias | `!lambda func: name` |
+
+**Python script**: `.claude/scripts/ha_yaml_validator.py`
+
+**Command line usage:**
+```bash
+# Validate single file
+python3 .claude/scripts/ha_yaml_validator.py automations/tests/tests.yaml
+
+# Validate all changed files
+python3 .claude/scripts/ha_yaml_validator.py --changed
+
+# Validate specific files
+python3 .claude/scripts/ha_yaml_validator.py automations/*.yaml
+
+# JSON output
+python3 .claude/scripts/ha_yaml_validator.py --changed --format json
+```
+
+**Integration with other subagents**:
+- **Config Validator**: Uses YAML Validator for YAML syntax checking before full config validation
+- **Deployment Orchestrator**: Calls YAML Validator before deployment
+- **Automation Verifier**: Uses YAML Validator for automation file validation
+
+**See also**: `.claude/agents/ha-yaml-validator.md` for complete documentation
 
 ---
 

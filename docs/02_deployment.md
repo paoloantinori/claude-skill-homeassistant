@@ -267,3 +267,4 @@ ssh ha "cd /homeassistant && git checkout -- file.yaml && git pull"
 | Blind checkout without diff | Loses unknown changes | Always `git diff` first |
 | SCP to wrong path | Changes not active | Use `ha:/homeassistant/` |
 | Forgot to reload | Changes not active | Reload after deploy |
+| Deployed to wrong file path (single file vs directory) | Changes not active, requires restart | Check configuration.yaml includes first |
