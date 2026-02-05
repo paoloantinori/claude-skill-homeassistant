@@ -233,6 +233,7 @@ This skill delegates specialized tasks to subagents for efficiency and expertise
 | **YAML validation** | `ha-yaml-validator` | "validate yaml", "check yaml", "yaml syntax", "is this valid?" |
 | **Config validation** | `ha-config-validator` | "validate config", "check config", "will this work?", "safe to deploy?" |
 | **Deployment to HA server** | `ha-deployment-orchestrator` | "deploy", "scp", "git push", "reload" |
+| **Git sync (3-way)** | `ha-git-sync` | "sync git", "check sync status", "are repos in sync", "sync local github server" |
 | **Lovelace/dashboard** | `ha-lovelace-dashboard-tester` | "dashboard", "lovelace", "UI", "card" |
 | **Service call testing** | `ha-service-call-tester` | "test service call", "call service", "trigger" |
 | **Entity metadata management** | `ha-entity-metadata` | "manage metadata", "set labels", "assign icons", "set areas", "export metadata" |
@@ -302,6 +303,7 @@ MISSED: Should use deployment-orchestrator
 | "Test automation X" | Delegate to `ha-automation-verifier` | Manually trigger ❌ |
 | "Validate YAML file" | Delegate to `ha-yaml-validator` | Use python yaml.safe_load ❌ |
 | "Deploy changes" | Delegate to `ha-deployment-orchestrator` | Run `scp` directly ❌ |
+| "Sync git repos" | Delegate to `ha-git-sync` | Manual git commands ❌ |
 | "Validate config" | Delegate to `ha-config-validator` | Run `ha core check` directly ❌ |
 | "Test dashboard" | Delegate to `ha-lovelace-dashboard-tester` | Edit without testing ❌ |
 | "Test service call" | Delegate to `ha-service-call-tester` | Run service call directly ❌ |
@@ -749,6 +751,97 @@ Deployment Steps:
 - **Complete lifecycle**: Validate (Config Validator) → Deploy (Deployment Orchestrator) → Verify (Automation Verifier) → Check Logs (HA Log Analyzer)
 
 **See also**: `.claude/agents/ha-deployment-orchestrator.md` for complete subagent documentation
+
+---
+
+### Git Sync
+
+**Location**: `.claude/agents/ha-git-sync.md` (real Claude Code subagent)
+
+**Purpose**: Synchronize git state across local repository, GitHub remote, and Home Assistant server
+
+**Auto-Discovery**: This subagent is auto-discovered by Claude Code at session start. It can be invoked via:
+- Auto-delegation when task matches description
+- Manual: "Use the ha-git-sync subagent to sync repositories"
+
+**Triggers** (auto-delegates to git sync agent):
+- Keywords: "sync git", "check sync status", "are repos in sync", "sync local github server"
+- Context: After git commits, before/after deployment work, when checking repository state
+- Explicit: "Sync all repos", "Check if local/github/HA are in sync", "Sync git state"
+
+**Workflows**:
+- **Status Check** (20s timeout): Check synchronization status across all three locations
+  - Get local commit (HEAD) → Get GitHub remote commit → Get HA server commit → Compare all three
+  - Returns: Sync status table and any differences
+
+- **Quick Sync** (60s timeout): Synchronize all three locations when local is ahead
+  - Check status → Push local to GitHub → Check HA server status → Handle conflicts → Pull on server → Verify
+  - Returns: Success with all three commits matching
+
+- **Safe Sync with Conflicts** (90s timeout): Handle conflicts when HA server has diverged
+  - Identify conflicts → Show detailed diff → Ask user for resolution → Execute → Verify
+  - Returns: Resolution status and final sync state
+
+- **Full Sync with Commit** (90s timeout): Commit local changes, push to GitHub, sync to HA server
+  - Check for local changes → Show diff and ask for commit message → Commit → Push → Handle server sync → Verify
+  - Returns: All three synchronized at new commit
+
+**Example usage**:
+```bash
+# Check sync status
+$ "Are my repos in sync?"
+# Delegates to git-sync for status check
+
+# Quick sync after local commit
+$ "Sync my local changes to GitHub and HA server"
+# Delegates for quick sync workflow
+
+# Handle conflicts
+$ "Server has diverged, sync safely"
+# Delegates for conflict resolution
+```
+
+**Output format**:
+```
+[STATUS] Quick Sync Complete
+
+Step 1/6: Status check → Local is 1 commit ahead
+Step 2/6: Push to GitHub → SUCCESS
+Step 3/6: Check server status → Has matching changes
+Step 4/6: Inspect server changes → Safe to discard (matches local)
+Step 5/6: Server git pull → SUCCESS
+Step 6/6: Verify sync → ALL MATCH
+
+┌─────────────┬──────────────┐
+│   Location  │    Commit    │
+├─────────────┼──────────────┤
+│ Local       │  1263dde     │
+│ GitHub      │  1263dde     │
+│ HA Server   │  1263dde     │
+└─────────────┴──────────────┘
+
+[STATUS] All repositories synchronized
+```
+
+**Key features**:
+- **3-way sync**: Local → GitHub → HA Server synchronization
+- **Conflict safety**: Always git diff before checkout (never lose data)
+- **Status verification**: Confirms all three match after operations
+- **Interactive resolution**: Asks user how to handle conflicts
+- **Clear reporting**: Table showing all three commits
+
+**Safety rules** (inherited from HA Manager skill):
+- **ALWAYS git diff before checkout**: Never discard changes without inspection
+- **NEVER git reset --hard**: Can lose uncommitted work without warning
+- **ALWAYS verify sync status**: After every operation, confirm all three match
+- **Use proper SSH options**: Always use `ssh -oVisualHostKey=no ha`
+
+**Integration with other subagents**:
+- **Deployment Orchestrator**: Deploy Orchestrator deploys YAML → Git Sync can sync back git state
+- **Config Validator**: Config Validator validates → Git Sync commits and pushes validated changes
+- **Automation Verifier**: Automation Verifier tests passes → Git Sync commits results
+
+**See also**: `.claude/agents/ha-git-sync.md` for complete subagent documentation
 
 ---
 
