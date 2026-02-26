@@ -268,3 +268,60 @@ ssh ha "cd /homeassistant && git checkout -- file.yaml && git pull"
 | SCP to wrong path | Changes not active | Use `ha:/homeassistant/` |
 | Forgot to reload | Changes not active | Reload after deploy |
 | Deployed to wrong file path (single file vs directory) | Changes not active, requires restart | Check configuration.yaml includes first |
+
+
+---
+
+## Reload Procedures: Which Reload to Use?
+
+**CRITICAL:** Different object types require different reload commands. Using wrong reload = changes not active.
+
+| Object Type Modified | Reload Command | What it Reloads |
+|------------------|---------------|-----------------|
+| **Automations** (`automations/**/*.yaml`) | `hass-cli service call automation.reload` | ONLY automations (NOT templates) |
+| **Templates** (`templates/`) | `hass-cli service call homeassistant.reload_template_entity` | Template entities |
+| **Scripts** (`scripts/**/*.yaml`) | `hass-cli service call script.reload` | Python scripts |
+| **Input datetime helpers** (`input_datetime/`) | `hass-cli service call input_datetime.reload` | ONLY input_datetime helpers (NOT all input helpers) |
+| **Scenes** (`scenes/`) | `hass-cli service call scene.reload` | Scenes |
+| **configuration.yaml** | RESTART REQUIRED | `ssh ha "ha core restart"` (ASK FIRST!) |
+
+### Reload Decision Tree
+
+```
+What did you modify?
+├─ automations/ (YAML files) → hass-cli service call automation.reload (ONLY automations, NOT templates)
+├─ scripts/ (YAML files) → hass-cli service call script.reload (ONLY Python scripts)
+├─ templates/ (Jinja2 templates) → hass-cli service call homeassistant.reload_template_entity (ONLY template entities)
+├─ input_datetime/ (helpers) → hass-cli service call input_datetime.reload (ONLY input_datetime helpers, NOT all input helpers)
+├─ scenes/ (YAML files) → hass-cli service call scene.reload (ONLY scenes)
+├─ configuration.yaml → ssh ha "ha core restart" (ASK USER FIRST!)
+└─ Not sure? → Use most specific reload for your change type
+```
+
+### Examples
+
+```bash
+# After editing automation YAML
+scp automations/climate/*.yaml ha:/homeassistant/automations/climate/
+hass-cli service call automation.reload  # ONLY reloads automations
+
+# After creating new input_datetime helpers
+scp input_datetime/input_datetime.yaml ha:/homeassistant/input_datetime/
+hass-cli service call input_datetime.reload  # Reloads ONLY helpers
+
+# After editing template entities
+scp templates/template_entity.yaml ha:/homeassistant/templates/
+hass-cli service call homeassistant.reload_template_entity  # Reloads template entities
+
+# After modifying configuration.yaml
+git add configuration.yaml && git commit -m "Config change" && git push
+ssh ha "cd /homeassistant && git pull"
+# Ask user: "May I restart Home Assistant?"
+ssh ha "ha core restart"
+```
+
+**Key Principle:** Use the most specific reload for what you changed. `automation.reload` is NOT a generic reload command.
+
+---
+
+
