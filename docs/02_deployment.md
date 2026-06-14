@@ -146,6 +146,35 @@ The HA server may have legitimate changes from:
 
 ---
 
+## 🔍 Detecting Server Drift (Commits Behind + Uncommitted Files)
+
+A blocked `git pull` is usually one scp'd file you can safely checkout. But sometimes the server has **silently drifted**: many commits behind origin *and* multiple uncommitted files from different concerns. That is **not** a checkout-and-pull — it's a **reconciliation problem** needing a human decision per file. Detect it *before* reaching for `git checkout`.
+
+### Drift check (run before pulling)
+
+```bash
+ssh ha "cd /homeassistant && git log --oneline HEAD..origin/master | wc -l"   # how far behind
+ssh ha "cd /homeassistant && git log --oneline HEAD..origin/master"           # what's incoming
+ssh ha "cd /homeassistant && git status --short"                               # uncommitted local files
+ssh ha "cd /homeassistant && git diff --name-only HEAD..origin/master"        # what the pull touches
+```
+
+### Read the signals
+
+| Signal | Meaning | Action |
+|---|---|---|
+| 0 behind, 1 modified file (your scp) | Normal scp-conflict | diff → checkout that file → pull |
+| **Many behind (5+) + multiple uncommitted files across concerns** | **Drifted tree** — real work never committed | **STOP. No blind `git checkout`.** Reconcile per file (server-vs-origin), commit/stash, then pull |
+| Uncommitted files the pull doesn't touch | Unrelated local mods | Safe — pull proceeds, they stay modified |
+
+**Why:** `git checkout -- <file>` assumes the local change is expendable. On a drifted tree those files may be **live work that exists only on the server** (sensor renames, debug config, UI dashboards) — checking them out destroys them irrecoverably.
+
+**Real incident (2026-06-14):** a deploy was blocked by 5 uncommitted files while the server sat **12 commits behind** origin; two files were live work with no copy elsewhere. The fix was applied to the live working copy directly; reconciliation was deferred to the user rather than risk `git checkout`.
+
+**Rule:** if `HEAD..origin/master` shows >1–2 commits OR `git status` shows uncommitted files you didn't create this session → treat as drift, surface it to the user, and never `git checkout` to force the pull.
+
+---
+
 ## SCP + Git Pull Workflow (Avoiding Conflicts)
 
 When you've tested changes via SCP and want to sync to git:
