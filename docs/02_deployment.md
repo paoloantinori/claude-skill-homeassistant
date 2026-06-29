@@ -351,6 +351,22 @@ ssh ha "ha core restart"
 
 **Key Principle:** Use the most specific reload for what you changed. `automation.reload` is NOT a generic reload command.
 
+### Reloads via the ha MCP server (no hass-cli needed)
+
+Every reload above is a service call, so you can also fire it through the ha MCP server
+— preferred when your dev host can't reach HA's LAN:
+
+- Automations → `ha_call_service(domain="automation", service="reload")`
+- Scripts → `ha_call_service(domain="script", service="reload")`
+- Template entities → `ha_call_service(domain="homeassistant", service="reload_template_entity")`
+- Everything reloadable → `ha_reload_core(target="all")`
+
+### Trivial deploys don't need delegation
+
+For a single-file edit you fully understand + one reload (no restart), execute the deploy
+directly — don't spin up the deployment-orchestrator subagent. Delegate only for
+multi-step, ambiguous, or drift-prone deploys (see the drift section above).
+
 ---
 
 

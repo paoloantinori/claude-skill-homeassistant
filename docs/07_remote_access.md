@@ -4,6 +4,25 @@
 
 ---
 
+## 📌 Channel Selection (read this first)
+
+Prefer channels in this order. The rest of this document is the **hass-cli reference**
+(useful as the SSH-side fallback and for raw API access).
+
+1. **ha MCP tools (primary):** `ha_get_state`, `ha_call_service`, `ha_eval_template`,
+   `ha_search`, `ha_config_get_*`, `ha_get_logs`, `ha_get_history`. Always-connected;
+   they work even when your dev host cannot reach HA's LAN.
+2. **hass-cli over SSH (fallback):** `ssh -oVisualHostKey=no ha "hass-cli …"` for what
+   MCP can't do (`ha core check`, server-side git, docker).
+3. **hass-cli from the dev host (tertiary):** only works when this machine resolves
+   `homeassistant.local`. If `hass-cli` errors with "Error connecting to …", do NOT
+   switch to curl — use channel 1 or 2.
+4. **curl:** forbidden (auth/header maintenance burden).
+
+> **Note:** `hass-cli` run from a dev host that is *not* on the home LAN usually cannot
+> resolve `homeassistant.local` (mDNS). That is an environment limitation, not a hass-cli
+> bug — route through the ha MCP server or SSH instead.
+
 ## 🚨 CRITICAL: Use hass-cli, NOT curl
 
 **hass-cli is MANDATORY for all Home Assistant API interactions.**

@@ -10,15 +10,38 @@ Expert-level Home Assistant configuration management with efficient workflows, r
 ## Critical Rules
 
 1. **NEVER restart without asking** — see [docs/01_critical_safety.md](docs/01_critical_safety.md)
-2. **ALWAYS use hass-cli, NEVER curl** — see [docs/07_remote_access.md](docs/07_remote_access.md)
+2. **Prefer ha MCP tools, fall back to hass-cli over SSH, NEVER curl** — see [docs/07_remote_access.md](docs/07_remote_access.md)
 3. **ALWAYS check configuration.yaml FIRST** for file organization — see [docs/10_file_organization.md](docs/10_file_organization.md)
 
 | Rule | Violation | Correct Approach |
 |------|-----------|------------------|
 | NO restart without asking | `ssh ha "ha core restart"` | Always ask: "May I restart?" |
-| NO curl for HA API | `curl -H "Authorization: Bearer $TOKEN" ...` | Use `hass-cli state get/service call` |
+| NO curl for HA API | `curl -H "Authorization: Bearer $TOKEN" ...` | Use ha MCP tools (`ha_get_state`/`ha_call_service`), or `hass-cli` over SSH |
 | NO grep for SSH fingerprint | `ssh ha ... \| grep -v "Host key..."` | Use `ssh -oVisualHostKey=no ha ...` |
 | NO blind git checkout | `ssh ha "cd /homeassistant && git checkout ."` | Always `git diff` first |
+
+## Talking to Home Assistant — channel hierarchy
+
+1. **ha MCP tools (primary):** `ha_get_state`, `ha_call_service`, `ha_eval_template`,
+   `ha_search`, `ha_config_get_*`, `ha_get_logs`, `ha_get_history`. Always-connected
+   and schema-validated; they work even when your dev host cannot reach HA's LAN.
+2. **hass-cli over SSH (fallback):** `ssh -oVisualHostKey=no ha "hass-cli …"` for what
+   MCP can't do (`ha core check`, server-side git, docker).
+3. **hass-cli from the dev host (tertiary):** only when this machine resolves
+   `homeassistant.local`. If it errors connecting, do NOT switch to curl — use
+   channel 1 or 2.
+4. **curl:** forbidden (auth/header maintenance burden).
+
+### Known tooling limitations
+
+- `ha_search` config-body search returns `partial: true` and **cannot read YAML-defined
+  automations/scripts** (the REST `/config` endpoint 404s them). To inspect a YAML
+  automation's live body, use `ha_config_get_automation`, `ha_get_automation_traces`,
+  or read the source file — do not rely on config-body search to confirm it.
+- `hass-cli` from a dev host off the home LAN often cannot resolve `homeassistant.local`
+  (mDNS). Use ha MCP or `ssh ha "hass-cli …"`.
+- The ha MCP server ships its own `home-assistant-best-practices` skill — consult it via
+  `ha_get_skill_guide` for native-trigger / template / dashboard guidance.
 
 ## Documentation Index
 
@@ -113,6 +136,20 @@ Common workflows:
 
 ## Subagent Delegation
 
+### When NOT to delegate (do it directly)
+
+Delegation has overhead, and its result-reporting can occasionally drop a result (the
+subagent completes work but no result surfaces). Default to **direct execution** for:
+
+- A single-file edit + one reload (no restart)
+- A change you fully understand, or an established pattern
+- Any ha MCP read / state / template / service call
+- Any task needing fewer than ~5 sequential server commands
+
+Delegate only for: log analysis, dashboard work, multi-step or ambiguous deploys,
+registry/ID migration, service-call validation, or when a task genuinely benefits from
+an isolated agent context.
+
 ### Decision Matrix
 
 | Task Type | Delegate To | Trigger Words |
@@ -136,7 +173,7 @@ Common workflows:
 Task identified → Consult matrix → Match found? → YES: Delegate to agent → NO: Proceed directly
 ```
 
-**Always delegate when a match exists.** Only skip if user explicitly says "do it directly."
+**Delegate when a matrix match exists AND the task isn't trivial** (see "When NOT to delegate" above). For simple, well-understood changes, execute directly.
 
 ## Auto-Improve
 
