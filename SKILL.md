@@ -1,6 +1,6 @@
 ---
 name: home-assistant-manager
-description: Expert-level Home Assistant configuration management with deployment workflows, remote CLI access via SSH and hass-cli, automation verification, log analysis, reload vs restart optimization, and Lovelace dashboard management.
+description: Expert-level Home Assistant configuration management with deployment workflows, remote access via the ha MCP tools (primary) plus SSH/hass-cli (fallback), automation verification, log analysis, reload vs restart optimization, and Lovelace dashboard management.
 ---
 
 # Home Assistant Manager
