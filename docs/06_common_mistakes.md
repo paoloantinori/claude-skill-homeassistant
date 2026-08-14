@@ -505,6 +505,11 @@ hass-cli service call input_boolean.reload
 | `tail -f` without timeout | **ALWAYS** wrap with `timeout X` |
 | Assuming output format | Check actual output before parsing |
 | **Failing 3+ times in a row** | **STOP after 2 failures → Add diagnostics → Then retry** |
+| `hass-cli template` inline string | It wants a FILE path; write Jinja to a temp file |
+| Multiple `service call` params | Repeat `--arguments` flag per key=value pair |
+| `input_datetime.set_datetime` 400 via hass-cli | Use YAML automation/script or UI for helper writes (HA 2026.8) |
+| Automation entity lookup by YAML `id` | Entity id is the slugified `alias`; find via `state list \| grep` |
+| `ssh ha "hass-cli …"` not found | hass-cli absent on server; use dev-host hass-cli or ha MCP |
 
 ---
 
@@ -892,3 +897,141 @@ input_boolean: !include_dir_merge_named input_boolean  # Loads from folder/
 ```
 
 **Key takeaway:** Spook's "ghost" warning is a hint to investigate, not a verdict to delete. Always verify with `hass-cli state list` before removing dashboard references.
+
+---
+
+## Mistake 19: Passing an Inline Template to `hass-cli template`
+
+**Symptom:** `Error: Invalid value for 'TEMPLATE': '...': No such file or directory`
+
+**What happened:**
+- Passed the Jinja template as an inline string argument
+- This hass-cli build expects a FILE PATH, not the template text
+- It tries to open the template string as a file and fails
+
+**❌ WRONG:**
+```bash
+hass-cli template '{{ states("input_datetime.last_restart") }}'
+# Error: Invalid value for 'TEMPLATE': No such file or directory
+```
+
+**✅ CORRECT:**
+```bash
+# Write the Jinja to a temp file, pass the path
+cat > /tmp/test.j2 <<'EOF'
+{{ states('input_datetime.last_restart') }}
+EOF
+hass-cli template /tmp/test.j2
+```
+
+**Prevention:**
+- `hass-cli template <file>` renders a file; for one-off API-style calls there is also
+  `hass-cli raw post /api/template --json '{"template": "..."}'` (see Mistake 7)
+- Prefer the temp-file form: plain-text output, no JSON quoting battles
+
+---
+
+## Mistake 20: Multiple Service Parameters Need Repeated `--arguments` Flags
+
+**Symptom:** `Error: Got unexpected extra argument (key2=value2)`
+
+**What happened:**
+- Passed several key=value pairs after a single `--arguments` flag, space-separated
+- hass-cli consumes only the first pair as the flag value; the rest become unexpected
+  positional arguments
+
+**❌ WRONG:**
+```bash
+hass-cli service call input_datetime.set_datetime --arguments entity_id=input_datetime.last_restart timestamp=1786717888
+# Error: Got unexpected extra argument (timestamp=1786717888)
+```
+
+**✅ CORRECT:**
+```bash
+# Repeat the flag once per parameter (required for values containing spaces)
+hass-cli service call input_datetime.set_datetime --arguments entity_id=input_datetime.last_restart --arguments timestamp=1786717888
+```
+
+**Prevention:**
+- `--arguments entity_id=x --arguments key2=y`, one flag per parameter
+- Comma-joined form (`--arguments entity_id=x,value=y`) works for simple values but
+  breaks on values containing commas or spaces; the repeated-flag form is the robust one
+
+---
+
+## Mistake 21: `input_datetime.set_datetime` via hass-cli 400s on HA 2026.8
+
+**Symptom:** `Error calling service: 400 - 400: Bad Request` with an empty body, even
+with correct repeated-flag syntax (Mistake 20)
+
+**What happened (verified 2026-08-14, HA 2026.8.1):**
+- `hass-cli service call input_datetime.set_datetime` with `timestamp=` AND with
+  `datetime=` both return an empty 400
+- Read operations (`hass-cli template`, `state get`) work fine against the same server
+- The same service called from a YAML automation (with a templated `timestamp:`) works
+- Mechanism unverified (likely this hass-cli build serializing parameters in a way the
+  current HA schema validation rejects); empirically confirmed on this setup only
+
+**✅ Workarounds:**
+```bash
+# Reads: render templates instead
+hass-cli template /tmp/state.j2
+
+# Writes to helpers: use a YAML automation/script (proven path), or the UI
+```
+
+**Prevention:**
+- Do not burn attempts retrying parameter variants on an empty 400: after two failures,
+  switch strategy (Meta-Pattern below) and use the YAML/automation path for helper writes
+
+---
+
+## Mistake 22: Automation entity_id Comes From the alias, Not the YAML id
+
+**Symptom:** `hass-cli state get automation.notifiche_didup` → `Entity with ID ... not found`
+
+**What happened:**
+- Looked up an automation entity using the YAML `id:` field value
+- The YAML `id` is only the automation's internal identifier (used in traces/UI URLs);
+  the entity object_id is the slugified `alias:`
+- `alias: Notifiche Didup Nora` → `automation.notifiche_didup_nora`, while the YAML id
+  was `notifiche_didup`
+
+**✅ CORRECT:**
+```bash
+# Find the real entity_id from the alias
+hass-cli state list | grep -i didup
+# automation.notifiche_didup_nora  Notifiche Didup Nora  on
+```
+
+**Prevention:**
+- Resolve automation entities via `state list | grep <alias fragment>`, never from the
+  YAML `id`
+
+---
+
+## Mistake 23: hass-cli Is Not in PATH on the HA Server over SSH
+
+**Symptom:** `ssh ha "hass-cli ..."` → `zsh:1: command not found: hass-cli`
+
+**What happened:**
+- Channel hierarchy (SKILL.md) lists `ssh ha "hass-cli …"` as the SSH fallback
+- On this setup hass-cli is not installed (or not in PATH for non-interactive SSH), so
+  that channel is unavailable
+- The dev-host hass-cli (tertiary channel) works when on the home LAN
+  (`homeassistant.local` resolves)
+
+**✅ CORRECT:**
+```bash
+# From the dev host on the home LAN
+source .env && hass-cli state get sensor.example
+
+# Server-side operations that hass-cli cannot do anyway still go through plain SSH
+ssh -oVisualHostKey=no ha "docker logs homeassistant --since 2h | tail -50"
+```
+
+**Prevention:**
+- If the dev host cannot resolve `homeassistant.local` AND the server lacks hass-cli,
+  the remaining options are the ha MCP tools (channel 1) or `ssh ha "ha core ..."`
+  commands; never fall back to curl
+
