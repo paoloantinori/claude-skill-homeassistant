@@ -507,7 +507,7 @@ hass-cli service call input_boolean.reload
 | **Failing 3+ times in a row** | **STOP after 2 failures → Add diagnostics → Then retry** |
 | `hass-cli template` inline string | It wants a FILE path; write Jinja to a temp file |
 | Multiple `service call` params | Repeat `--arguments` flag per key=value pair |
-| `input_datetime.set_datetime` 400 via hass-cli | Use YAML automation/script or UI for helper writes (HA 2026.8) |
+| Parameterized `service call` via hass-cli | 400s or empty params; use YAML/UI/MCP (HA 2026.8) |
 | Automation entity lookup by YAML `id` | Entity id is the slugified `alias`; find via `state list \| grep` |
 | `ssh ha "hass-cli …"` not found | hass-cli absent on server; use dev-host hass-cli or ha MCP |
 | `hass-cli state history` bad escape | Broken in this build; use `.storage/trace.saved_traces` or MCP history |
@@ -960,30 +960,34 @@ hass-cli service call input_datetime.set_datetime --arguments entity_id=input_da
 
 ---
 
-## Mistake 21: `input_datetime.set_datetime` via hass-cli 400s on HA 2026.8
+## Mistake 21: Parameterized `hass-cli service call` Is Unreliable on HA 2026.8
 
-**Symptom:** `Error calling service: 400 - 400: Bad Request` with an empty body, even
-with correct repeated-flag syntax (Mistake 20)
+**Symptom:** Either `Error calling service: 400 - 400: Bad Request` with an empty body,
+or the call "succeeds" but the service reports missing/empty parameters
 
-**What happened (verified 2026-08-14, HA 2026.8.1):**
+**What happened (verified 2026-08-14/15, HA 2026.8.1):**
 - `hass-cli service call input_datetime.set_datetime` with `timestamp=` AND with
-  `datetime=` both return an empty 400
-- Read operations (`hass-cli template`, `state get`) work fine against the same server
-- The same service called from a YAML automation (with a templated `timestamp:`) works
-- Mechanism unverified (likely this hass-cli build serializing parameters in a way the
-  current HA schema validation rejects); empirically confirmed on this setup only
+  `datetime=` (correct repeated-flag syntax, Mistake 20) both return an empty 400
+- `hass-cli service call pyscript.send_portaleargo_notification` with repeated
+  `--arguments` flags executes the function but the parameters arrive EMPTY (the
+  function logs "Missing required parameters")
+- Parameterless calls (`automation.reload`, `pyscript.reload`) work fine
+- The same services called from YAML automations/scripts work
+- Mechanism unverified (likely this hass-cli build serializing the payload in a way
+  current HA rejects or drops); empirically confirmed on this setup only
 
 **✅ Workarounds:**
 ```bash
 # Reads: render templates instead
 hass-cli template /tmp/state.j2
 
-# Writes to helpers: use a YAML automation/script (proven path), or the UI
+# Parameterized service calls: use a YAML automation/script, the UI,
+# or the ha MCP tools (channel 1); never burn retries on hass-cli variants
 ```
 
 **Prevention:**
-- Do not burn attempts retrying parameter variants on an empty 400: after two failures,
-  switch strategy (Meta-Pattern below) and use the YAML/automation path for helper writes
+- Treat hass-cli service calls as parameterless-only on this setup
+- After two failures on the same call, switch channel (Meta-Pattern below)
 
 ---
 
