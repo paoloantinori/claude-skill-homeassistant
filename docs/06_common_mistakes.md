@@ -510,6 +510,7 @@ hass-cli service call input_boolean.reload
 | `input_datetime.set_datetime` 400 via hass-cli | Use YAML automation/script or UI for helper writes (HA 2026.8) |
 | Automation entity lookup by YAML `id` | Entity id is the slugified `alias`; find via `state list \| grep` |
 | `ssh ha "hass-cli …"` not found | hass-cli absent on server; use dev-host hass-cli or ha MCP |
+| `hass-cli state history` bad escape | Broken in this build; use `.storage/trace.saved_traces` or MCP history |
 
 ---
 
@@ -1034,4 +1035,37 @@ ssh -oVisualHostKey=no ha "docker logs homeassistant --since 2h | tail -50"
 - If the dev host cannot resolve `homeassistant.local` AND the server lacks hass-cli,
   the remaining options are the ha MCP tools (channel 1) or `ssh ha "ha core ..."`
   commands; never fall back to curl
+
+---
+
+## Mistake 24: `hass-cli state history` Broken in This Build
+
+**Symptom:** `error: bad escape \d at position 7` on every invocation, even with no
+`--since`/`--end` arguments (verified 2026-08-15)
+
+**What happened:**
+- Wanted state history to see an entity's transitions across a restart
+- `hass-cli state history <entity>` fails before any request: the build mangles its own
+  default time-window handling (regex escape error, not a server-side issue)
+
+**✅ Workarounds:**
+```bash
+# Automation runs (including runs blocked by conditions, script_execution:
+# failed_conditions) are persisted on the server:
+ssh -oVisualHostKey=no ha "python3 -c \"
+import json
+data = json.load(open('/homeassistant/.storage/trace.saved_traces'))['data']
+for k in data:
+    if '<name fragment>' in k:
+        for t in data[k]:
+            ed = t['extended_dict']
+            print(k, ed['timestamp']['start'], ed.get('script_execution'))
+\""
+
+# Entity state over time: use the ha MCP history tools (channel 1) instead
+```
+
+**Prevention:**
+- For "did this automation fire / was it blocked?" questions, go straight to
+  `.storage/trace.saved_traces`; it proves both executed runs and condition-blocked runs
 
