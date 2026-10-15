@@ -21,7 +21,25 @@ Prefer channels in this order. The rest of this document is the **hass-cli refer
 
 > **Note:** `hass-cli` run from a dev host that is *not* on the home LAN usually cannot
 > resolve `homeassistant.local` (mDNS). That is an environment limitation, not a hass-cli
-> bug — route through the ha MCP server or SSH instead.
+> bug; route through the ha MCP server or SSH instead.
+
+### Environment limits on this LAN (verified 2026-10-15)
+
+- **`hass-cli` is NOT installed on the HA server**: `ssh ha "hass-cli …"` fails with
+  `command not found`. The working layout is channel 3 with the canonical URL:
+  `source .env && HASS_SERVER=https://casanande.mywire.org hass-cli …`
+  (REST works through the AdGuard/NPM chain; mDNS does not resolve from the dev host).
+- **WebSocket does not survive the reverse proxy**: `wss://…/api/websocket` via
+  casanande.mywire.org dies with `timed out during opening handshake` while REST on the
+  same URL is fine. For WS clients (entity-registry commands, `websockets` scripts, the
+  metadata helper) open an SSH tunnel and point them at it:
+  `ssh -oVisualHostKey=no -f -N -L 18123:localhost:8123 ha` then
+  `HASS_SERVER=http://127.0.0.1:18123`.
+- **`hass-cli service call` cannot fetch service responses** (the REST layer needs
+  `?return_response`, which hass-cli does not send; error: "Service call requires
+  responses but caller did not ask for responses"). For `supports_response` services
+  (e.g. the `pyscript.alexa_*` probes) use a WebSocket `call_service` with
+  `"return_response": true`.
 
 ## 🚨 CRITICAL: Use hass-cli, NOT curl
 
