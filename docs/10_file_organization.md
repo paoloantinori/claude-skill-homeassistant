@@ -79,6 +79,25 @@ template: !include_dir_merge_list templates
 
 ---
 
+### Matter buttons (BILRESA and similar)
+
+Matter buttons expose `event.*` entities (one per physical button) and automate with
+`trigger: event.received`, `options.event_type` per gesture, a trigger `id` per
+button+gesture combination, and a `choose` dispatch. The firmware already counts
+consecutive presses (`event_types: multi_press_1..8`), so no debounce helpers are needed,
+and Z2M blueprints (EPMatt, bound to `sensor.*_action`) do not transfer to Matter devices.
+
+- A blueprint wins only when instances share logic and vary targets; deferring the
+  extraction until duplication actually appears costs about zero.
+- Same-named twin devices (the second gets `_2` entity suffixes) disambiguate by
+  press-and-observe: the user presses twice and the `event.*` entity with a fresh
+  `last_changed` identifies the physical wheel.
+- Button automations live in `automations/pulsanti/pulsanti.yaml` (the Z2M TRADFRI
+  blueprint set lives in the same file); blueprints are git-tracked under
+  `blueprints/automation/<author>/`.
+
+---
+
 ## Pre-Deployment Checklist
 
 **Before deploying ANY file:**

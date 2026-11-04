@@ -1,6 +1,6 @@
 ---
 name: home-assistant-manager
-description: Expert-level Home Assistant configuration management with deployment workflows, remote access via the ha MCP tools (primary) plus SSH/hass-cli (fallback), automation verification, log analysis, reload vs restart optimization, and Lovelace dashboard management.
+description: Expert-level Home Assistant configuration management with deployment workflows, remote access via the ha MCP tools (primary) plus SSH/hass-cli (fallback), automation verification, log analysis, reload vs restart optimization, Lovelace dashboard management, and Thread/OTBR mesh and radio diagnostics (Matter nodes, border router, RCP).
 ---
 
 # Home Assistant Manager
@@ -40,8 +40,30 @@ Expert-level Home Assistant configuration management with efficient workflows, r
   or read the source file — do not rely on config-body search to confirm it.
 - `hass-cli` from a dev host off the home LAN often cannot resolve `homeassistant.local`
   (mDNS). Use ha MCP or `ssh ha "hass-cli …"`.
-- The ha MCP server ships its own `home-assistant-best-practices` skill — consult it via
+- The ha MCP server ships its own `home-assistant-best-practices` skill, consult it via
   `ha_get_skill_guide` for native-trigger / template / dashboard guidance.
+- **OTBR add-on (`core_openthread_border_router`) `ot-ctl` channel:** multi-word commands
+  (`child table`, `router table`, `neighbor table`, `dataset active`) fail in argv form
+  (Error 35, any quoting). The working channel is stdin with the pipe held open:
+  `(echo "child table"; sleep 3) | docker exec -i app_core_openthread_border_router ot-ctl`;
+  without the `sleep` ot-ctl answers with a bare echo of the command. Single-word getters
+  also work via argv: `state`, `ipaddr`, `leaderdata`, `childip`, `extpanid`, `networkname`,
+  `channel`, `version`; `rcpversion` is unreadable via CLI.
+- **`ot-ctl` error semantics:** Error 7 means an argument is required; Error 13 on `parent`
+  is normal for a leader; empty `childip`/`child table` means zero children ON THE LEADER,
+  which is not proof of disconnection (devices may be children of another router).
+- **Add-on logs:** `ha_get_logs(source="supervisor", slug="core_<name>")` or
+  `docker logs app_core_openthread_border_router` (container name carries the `app_` prefix).
+  Lines are uptime-relative (`3d.05:54:46`); real time = uptime + container `StartedAt`
+  from `docker inspect`.
+
+### Time-boxed network symptoms: sweep the change ledger first
+
+When HA entities drop at a specific time T (cluster their `last_changed`), sweep infra
+change history for that window BEFORE proposing hardware causes: sibling repo git logs
+(`/home/pantinor/data/repo/personal/backup_routers`), addon restarts or runtime commands
+on the OTBR/Matter-server containers, HA restarts. Deliver the verdict in explicit layers
+with dates (cause, mechanism, residual debt), not as a single yes/no.
 
 ## Documentation Index
 
